@@ -410,7 +410,7 @@ class _ClassFormScreenState extends State<ClassFormScreen> {
                 decoration: const InputDecoration(
                   labelText: 'Precio',
                   hintText: '0.00',
-                  prefixText: '\$ ',
+                  prefixText: 'Bs ',
                   filled: true,
                   fillColor: AppColors.white,
                 ),

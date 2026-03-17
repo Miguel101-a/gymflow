@@ -48,10 +48,32 @@ class _GymFlowAppState extends State<GymFlowApp> {
   }
 
   void _setupAuthListener() {
-    _supabase.auth.onAuthStateChange.listen((data) {
+    _supabase.auth.onAuthStateChange.listen((data) async {
       final event = data.event;
+      final session = data.session;
+
+      print("AUTH EVENT: $event");
+
       if (event == AuthChangeEvent.passwordRecovery) {
         navigatorKey.currentState?.pushNamed('/update-password');
+      }
+
+      if (event == AuthChangeEvent.signedIn && session != null) {
+        try {
+          final profile = await _supabase
+              .from('perfiles')
+              .select('rol')
+              .eq('id', session.user.id)
+              .single();
+
+          if (profile['rol'] == 'admin') {
+            navigatorKey.currentState?.pushNamedAndRemoveUntil('/admin', (r) => false);
+          } else {
+            navigatorKey.currentState?.pushNamedAndRemoveUntil('/client', (r) => false);
+          }
+        } catch (e) {
+          navigatorKey.currentState?.pushNamedAndRemoveUntil('/login', (r) => false);
+        }
       }
     });
   }

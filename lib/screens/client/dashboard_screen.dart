@@ -155,15 +155,33 @@ class _DashboardScreenState extends State<DashboardScreen> {
           shellState.switchTab(2);
         }
       } else if (value == 'logout') {
-        _signOut();
+        _confirmSignOut();
       }
     });
   }
 
-  Future<void> _signOut() async {
-    await _supabase.auth.signOut();
-    if (mounted) {
-      Navigator.pushNamedAndRemoveUntil(context, '/login', (route) => false);
+  Future<void> _confirmSignOut() async {
+    final shouldLogout = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('¿Está seguro de salir?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('No'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Sí'),
+          ),
+        ],
+      ),
+    );
+    if (shouldLogout == true) {
+      await _supabase.auth.signOut();
+      if (mounted) {
+        Navigator.pushNamedAndRemoveUntil(context, '/login', (route) => false);
+      }
     }
   }
 

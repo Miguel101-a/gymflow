@@ -170,9 +170,27 @@ class ClientShellState extends State<ClientShell> {
             leading: const Icon(Icons.logout, color: AppColors.error),
             title: const Text('Cerrar Sesión', style: TextStyle(color: AppColors.error)),
             onTap: () async {
-              await Supabase.instance.client.auth.signOut();
-              if (mounted) {
-                Navigator.pushNamedAndRemoveUntil(context, '/login', (route) => false);
+              final shouldLogout = await showDialog<bool>(
+                context: context,
+                builder: (ctx) => AlertDialog(
+                  title: const Text('¿Está seguro de salir?'),
+                  actions: [
+                    TextButton(
+                      onPressed: () => Navigator.of(ctx).pop(false),
+                      child: const Text('No'),
+                    ),
+                    TextButton(
+                      onPressed: () => Navigator.of(ctx).pop(true),
+                      child: const Text('Sí'),
+                    ),
+                  ],
+                ),
+              );
+              if (shouldLogout == true) {
+                await Supabase.instance.client.auth.signOut();
+                if (mounted) {
+                  Navigator.pushNamedAndRemoveUntil(context, '/login', (route) => false);
+                }
               }
             },
           ),

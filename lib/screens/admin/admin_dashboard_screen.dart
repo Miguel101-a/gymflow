@@ -82,10 +82,28 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     }
   }
 
-  Future<void> _signOut() async {
-    await _supabase.auth.signOut();
-    if (mounted) {
-      Navigator.pushNamedAndRemoveUntil(context, '/login', (route) => false);
+  Future<void> _confirmSignOut() async {
+    final shouldLogout = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('¿Está seguro de salir?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('No'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Sí'),
+          ),
+        ],
+      ),
+    );
+    if (shouldLogout == true) {
+      await _supabase.auth.signOut();
+      if (mounted) {
+        Navigator.pushNamedAndRemoveUntil(context, '/login', (route) => false);
+      }
     }
   }
 
@@ -115,7 +133,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                       child: Text('Panel Admin', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700)),
                     ),
                     GestureDetector(
-                      onTap: _signOut,
+                      onTap: _confirmSignOut,
                       child: Container(
                         padding: const EdgeInsets.all(8),
                         decoration: BoxDecoration(

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../theme/app_colors.dart';
 import 'dashboard_screen.dart';
@@ -15,9 +16,41 @@ class ClientShell extends StatefulWidget {
 
 class ClientShellState extends State<ClientShell> {
   int _currentIndex = 0;
+  final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
+  String _userName = 'Usuario';
+  String _userRole = 'CLIENTE';
+
+  @override
+  void initState() {
+    super.initState();
+    _loadUser();
+  }
+
+  Future<void> _loadUser() async {
+    final user = Supabase.instance.client.auth.currentUser;
+    if (user != null) {
+      try {
+        final profile = await Supabase.instance.client
+            .from('perfiles')
+            .select('nombre_completo, rol')
+            .eq('id', user.id)
+            .single();
+        if (mounted) {
+          setState(() {
+            _userName = profile['nombre_completo'] ?? 'Usuario';
+            _userRole = (profile['rol'] ?? 'cliente').toString().toUpperCase();
+          });
+        }
+      } catch (_) {}
+    }
+  }
 
   void switchTab(int index) {
     setState(() => _currentIndex = index);
+  }
+
+  void openDrawer() {
+    _scaffoldKey.currentState?.openDrawer();
   }
 
   final List<Widget> _screens = const [
@@ -30,6 +63,8 @@ class ClientShellState extends State<ClientShell> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      key: _scaffoldKey,
+      drawer: _buildDrawer(),
       body: IndexedStack(
         index: _currentIndex,
         children: _screens,
@@ -39,7 +74,7 @@ class ClientShellState extends State<ClientShell> {
           color: AppColors.white,
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.05),
+              color: Colors.black.withValues(alpha: 0.05),
               blurRadius: 10,
               offset: const Offset(0, -2),
             ),
@@ -79,6 +114,70 @@ class ClientShellState extends State<ClientShell> {
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildDrawer() {
+    return Drawer(
+      backgroundColor: AppColors.backgroundLight,
+      child: Column(
+        children: [
+          UserAccountsDrawerHeader(
+            decoration: const BoxDecoration(color: AppColors.primary),
+            accountName: Text(_userName, style: const TextStyle(fontWeight: FontWeight.w700)),
+            accountEmail: Text(_userRole),
+            currentAccountPicture: const CircleAvatar(
+              backgroundColor: AppColors.white,
+              child: Icon(Icons.person, color: AppColors.primary),
+            ),
+          ),
+          ListTile(
+            leading: const Icon(Icons.home_outlined),
+            title: const Text('Inicio'),
+            onTap: () {
+              switchTab(0);
+              Navigator.pop(context);
+            },
+          ),
+          ListTile(
+            leading: const Icon(Icons.calendar_today_outlined),
+            title: const Text('Horario/Clases'),
+            onTap: () {
+              switchTab(1);
+              Navigator.pop(context);
+            },
+          ),
+          ListTile(
+            leading: const Icon(Icons.view_list_outlined),
+            title: const Text('Mis Reservas'),
+            onTap: () {
+              switchTab(2);
+              Navigator.pop(context);
+            },
+          ),
+          ListTile(
+            leading: const Icon(Icons.person_outline),
+            title: const Text('Perfil'),
+            onTap: () {
+              switchTab(3);
+              Navigator.pop(context);
+            },
+          ),
+          const Spacer(),
+          const Divider(),
+          ListTile(
+            leading: const Icon(Icons.logout, color: AppColors.error),
+            title: const Text('Cerrar Sesión', style: TextStyle(color: AppColors.error)),
+            onTap: () async {
+              await Supabase.instance.client.auth.signOut();
+              if (mounted) {
+                Navigator.pushNamedAndRemoveUntil(context, '/login', (route) => false);
+              }
+            },
+          ),
+          const SizedBox(height: 20),
+        ],
       ),
     );
   }

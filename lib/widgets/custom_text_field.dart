@@ -10,6 +10,9 @@ class CustomTextField extends StatelessWidget {
   final TextEditingController? controller;
   final TextInputType? keyboardType;
   final int maxLines;
+  final bool enabled;
+  final bool readOnly;
+  final String? helperText;
 
   const CustomTextField({
     super.key,
@@ -21,6 +24,9 @@ class CustomTextField extends StatelessWidget {
     this.controller,
     this.keyboardType,
     this.maxLines = 1,
+    this.enabled = true,
+    this.readOnly = false,
+    this.helperText,
   });
 
   @override
@@ -42,8 +48,11 @@ class CustomTextField extends StatelessWidget {
           obscureText: obscureText,
           keyboardType: keyboardType,
           maxLines: maxLines,
+          enabled: enabled,
+          readOnly: readOnly,
           decoration: InputDecoration(
             hintText: hintText,
+            helperText: helperText,
             prefixIcon: prefixIcon != null
                 ? Icon(prefixIcon, color: AppColors.textTertiary, size: 22)
                 : null,

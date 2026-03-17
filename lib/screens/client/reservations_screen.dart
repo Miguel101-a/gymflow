@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../theme/app_colors.dart';
+import '../../utils/refresh_notifier.dart';
+import 'client_shell.dart';
 
 class ReservationsScreen extends StatefulWidget {
   const ReservationsScreen({super.key});
@@ -21,10 +23,16 @@ class _ReservationsScreenState extends State<ReservationsScreen> with SingleTick
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
     _fetchReservations();
+    RefreshNotifier.clientRefresh.addListener(_onRefresh);
+  }
+
+  void _onRefresh() {
+    _fetchReservations();
   }
 
   @override
   void dispose() {
+    RefreshNotifier.clientRefresh.removeListener(_onRefresh);
     _tabController.dispose();
     super.dispose();
   }
@@ -46,7 +54,24 @@ class _ReservationsScreenState extends State<ReservationsScreen> with SingleTick
       final upcoming = <dynamic>[];
       final past = <dynamic>[];
 
-      for (final r in reservations) {
+      // Sort reservations by class date and time
+      final sortedReservations = List<dynamic>.from(reservations);
+      sortedReservations.sort((a, b) {
+        final claseA = a['clase'] ?? {};
+        final claseB = b['clase'] ?? {};
+        final fechaA = claseA['fecha']?.toString() ?? '';
+        final horaA = claseA['hora_inicio']?.toString() ?? '';
+        final fechaB = claseB['fecha']?.toString() ?? '';
+        final horaB = claseB['hora_inicio']?.toString() ?? '';
+        
+        // Pad hours effectively to be parseable or compare lexicographically
+        final dtA = DateTime.tryParse('$fechaA $horaA') ?? DateTime.fromMillisecondsSinceEpoch(0);
+        final dtB = DateTime.tryParse('$fechaB $horaB') ?? DateTime.fromMillisecondsSinceEpoch(0);
+        
+        return dtA.compareTo(dtB); // Ascending for upcoming
+      });
+
+      for (final r in sortedReservations) {
         final estado = r['estado'] ?? '';
         if (estado == 'confirmada' || estado == 'lista_de_espera') {
           upcoming.add(r);
@@ -54,6 +79,21 @@ class _ReservationsScreenState extends State<ReservationsScreen> with SingleTick
           past.add(r);
         }
       }
+      
+      // Past reservations should ideally be newest first (descending)
+      past.sort((a, b) {
+        final claseA = a['clase'] ?? {};
+        final claseB = b['clase'] ?? {};
+        final fechaA = claseA['fecha']?.toString() ?? '';
+        final horaA = claseA['hora_inicio']?.toString() ?? '';
+        final fechaB = claseB['fecha']?.toString() ?? '';
+        final horaB = claseB['hora_inicio']?.toString() ?? '';
+        
+        final dtA = DateTime.tryParse('$fechaA $horaA') ?? DateTime.fromMillisecondsSinceEpoch(0);
+        final dtB = DateTime.tryParse('$fechaB $horaB') ?? DateTime.fromMillisecondsSinceEpoch(0);
+        
+        return dtB.compareTo(dtA);
+      });
 
       if (mounted) {
         setState(() {
@@ -73,6 +113,8 @@ class _ReservationsScreenState extends State<ReservationsScreen> with SingleTick
           .from('reservas')
           .update({'estado': 'cancelada', 'updated_at': DateTime.now().toIso8601String()})
           .eq('id', reservationId);
+
+      RefreshNotifier.notifyClient();
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -103,8 +145,11 @@ class _ReservationsScreenState extends State<ReservationsScreen> with SingleTick
               child: Row(
                 children: [
                   GestureDetector(
-                    onTap: () => Navigator.maybePop(context),
-                    child: const Icon(Icons.arrow_back, size: 24),
+                    onTap: () {
+                      final shellState = context.findAncestorStateOfType<ClientShellState>();
+                      if (shellState != null) shellState.openDrawer();
+                    },
+                    child: const Icon(Icons.menu, size: 24),
                   ),
                   const Expanded(
                     child: Text('Mis Reservas', textAlign: TextAlign.center,
@@ -263,7 +308,7 @@ class _ReservationsScreenState extends State<ReservationsScreen> with SingleTick
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                       decoration: BoxDecoration(
-                        color: statusColor.withOpacity(0.1),
+                        color: statusColor.withValues(alpha: 0.1),
                         borderRadius: BorderRadius.circular(6),
                       ),
                       child: Text(status,

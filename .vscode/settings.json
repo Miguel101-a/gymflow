@@ -1,0 +1,8 @@
+{
+    "java.import.exclusions": [
+        "**/android/**",
+        "**/.pub-cache/**",
+        "**/flutter_tools/**"
+    ],
+    "java.project.importOnFirstTimeStartup": "disabled"
+}

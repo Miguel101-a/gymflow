@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../theme/app_colors.dart';
+import '../../utils/refresh_notifier.dart';
+import 'client_shell.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -23,6 +25,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
   void initState() {
     super.initState();
     _fetchProfile();
+    RefreshNotifier.clientRefresh.addListener(_onRefresh);
+  }
+
+  void _onRefresh() {
+    _fetchProfile();
+  }
+
+  @override
+  void dispose() {
+    RefreshNotifier.clientRefresh.removeListener(_onRefresh);
+    super.dispose();
   }
 
   Future<void> _fetchProfile() async {
@@ -97,8 +110,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 child: Row(
                   children: [
                     GestureDetector(
-                      onTap: () => Navigator.maybePop(context),
-                      child: const Icon(Icons.arrow_back, size: 24),
+                      onTap: () {
+                        final shellState = context.findAncestorStateOfType<ClientShellState>();
+                        if (shellState != null) shellState.openDrawer();
+                      },
+                      child: const Icon(Icons.menu, size: 24),
                     ),
                     const Expanded(
                       child: Text('Perfil del Cliente', textAlign: TextAlign.center,
@@ -183,6 +199,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   children: [
                     const Text('Reservas Recientes', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
                     GestureDetector(
+                      onTap: () {
+                        final shellState = context.findAncestorStateOfType<ClientShellState>();
+                        if (shellState != null) shellState.switchTab(2);
+                      },
                       child: const Text('Ver Todo', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: AppColors.primary)),
                     ),
                   ],
@@ -297,7 +317,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                   decoration: BoxDecoration(
-                    color: statusColor.withOpacity(0.1),
+                    color: statusColor.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(4),
                   ),
                   child: Text(status, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: statusColor)),

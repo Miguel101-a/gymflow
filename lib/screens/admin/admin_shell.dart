@@ -5,6 +5,7 @@ import 'admin_dashboard_screen.dart';
 import 'student_management_screen.dart';
 import 'manage_class_screen.dart';
 import 'calendar_screen.dart';
+import 'communications_screen.dart';
 
 
 class AdminShell extends StatefulWidget {
@@ -22,6 +23,7 @@ class _AdminShellState extends State<AdminShell> {
     StudentManagementScreen(),
     ManageClassScreen(),
     CalendarScreen(),
+    CommunicationsScreen(),
   ];
 
   @override
@@ -36,7 +38,7 @@ class _AdminShellState extends State<AdminShell> {
           color: AppColors.white,
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.05),
+              color: Colors.black.withValues(alpha: 0.05),
               blurRadius: 10,
               offset: const Offset(0, -2),
             ),
@@ -62,7 +64,7 @@ class _AdminShellState extends State<AdminShell> {
             BottomNavigationBarItem(
               icon: Icon(Icons.people_outline),
               activeIcon: Icon(Icons.people),
-              label: 'ESTUDIANTES',
+              label: 'ALUMNOS',
             ),
             BottomNavigationBarItem(
               icon: Icon(Icons.class_outlined),
@@ -74,9 +76,15 @@ class _AdminShellState extends State<AdminShell> {
               activeIcon: Icon(Icons.calendar_month),
               label: 'CALENDARIO',
             ),
+            BottomNavigationBarItem(
+              icon: Icon(Icons.mail_outline),
+              activeIcon: Icon(Icons.mail),
+              label: 'MENSAJES',
+            ),
           ],
         ),
       ),
     );
   }
 }
+

@@ -68,6 +68,13 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     final user = _supabase.auth.currentUser;
     if (user == null) return;
 
+    if (_nameController.text.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('El nombre no puede estar vacío'), backgroundColor: AppColors.error),
+      );
+      return;
+    }
+
     setState(() => _isSaving = true);
 
     try {
@@ -173,6 +180,8 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                       hintText: 'tu@email.com',
                       prefixIcon: Icons.email_outlined,
                       controller: _emailController,
+                      enabled: false,
+                      helperText: 'El correo no se puede cambiar desde aquí',
                     ),
                     const SizedBox(height: 20),
                     CustomTextField(

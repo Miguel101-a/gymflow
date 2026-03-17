@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../theme/app_colors.dart';
+import '../../utils/refresh_notifier.dart';
 
 class ManageClassScreen extends StatefulWidget {
   const ManageClassScreen({super.key});
@@ -45,6 +46,7 @@ class _ManageClassScreenState extends State<ManageClassScreen> {
           .update({'activa': !currentActive, 'updated_at': DateTime.now().toIso8601String()})
           .eq('id', classId);
           
+      RefreshNotifier.notifyAdmin();
       _fetchClasses();
     } catch (e) {
       if (mounted) {
@@ -74,6 +76,7 @@ class _ManageClassScreenState extends State<ManageClassScreen> {
     if (confirmed == true) {
       try {
         await _supabase.from('clases').delete().eq('id', classId);
+        RefreshNotifier.notifyAdmin();
         _fetchClasses();
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -131,7 +134,6 @@ class _ManageClassScreenState extends State<ManageClassScreen> {
                             final capacidadMaxima = cl['capacidad_maxima'] ?? 0;
                             final activa = cl['activa'] ?? false;
                             final ubicacion = cl['ubicacion'] ?? 'N/A';
-                            final nivel = cl['nivel'] ?? 'todos';
 
                             return Container(
                               margin: const EdgeInsets.only(bottom: 12),
@@ -140,7 +142,7 @@ class _ManageClassScreenState extends State<ManageClassScreen> {
                                 color: AppColors.white,
                                 borderRadius: BorderRadius.circular(12),
                                 border: Border.all(
-                                  color: activa ? AppColors.border : AppColors.error.withOpacity(0.3),
+                                  color: activa ? AppColors.border : AppColors.error.withValues(alpha: 0.3),
                                   width: 0.5,
                                 ),
                               ),
@@ -158,7 +160,10 @@ class _ManageClassScreenState extends State<ManageClassScreen> {
                                         onSelected: (value) async {
                                           if (value == 'edit') {
                                             final result = await Navigator.pushNamed(context, '/admin/class_form', arguments: cl);
-                                            if (result == true) _fetchClasses();
+                                            if (result == true) {
+                                              RefreshNotifier.notifyAdmin();
+                                              _fetchClasses();
+                                            }
                                           } else if (value == 'delete') {
                                             _deleteClass(cl['id'].toString());
                                           } else if (value == 'toggle') {
@@ -212,7 +217,7 @@ class _ManageClassScreenState extends State<ManageClassScreen> {
                                   Container(
                                     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                                     decoration: BoxDecoration(
-                                      color: activa ? AppColors.success.withOpacity(0.1) : AppColors.error.withOpacity(0.1),
+                                      color: activa ? AppColors.success.withValues(alpha: 0.1) : AppColors.error.withValues(alpha: 0.1),
                                       borderRadius: BorderRadius.circular(6),
                                     ),
                                     child: Text(
@@ -236,7 +241,10 @@ class _ManageClassScreenState extends State<ManageClassScreen> {
       floatingActionButton: FloatingActionButton(
         onPressed: () async {
           final result = await Navigator.pushNamed(context, '/admin/class_form');
-          if (result == true) _fetchClasses();
+          if (result == true) {
+            RefreshNotifier.notifyAdmin();
+            _fetchClasses();
+          }
         },
         backgroundColor: AppColors.primary,
         child: const Icon(Icons.add, color: AppColors.white),

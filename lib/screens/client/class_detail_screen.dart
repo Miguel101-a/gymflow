@@ -1,6 +1,7 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../theme/app_colors.dart';
+import '../../utils/refresh_notifier.dart';
 
 class ClassDetailScreen extends StatefulWidget {
   final Map<String, dynamic> classData;
@@ -29,21 +30,20 @@ class _ClassDetailScreenState extends State<ClassDetailScreen> {
     });
 
     try {
-      // 1. Comprobar reserva existente
-      final existing = await _supabase
+      // 1. Comprobar reserva existente activa
+      final existingList = await _supabase
           .from('reservas')
           .select('id, estado')
           .eq('usuario_id', user.id)
-          .eq('clase_id', widget.classData['id'])
-          .maybeSingle();
+          .eq('clase_id', widget.classData['id']);
 
-      if (existing != null) {
+      final hasActive = (existingList as List).any((r) => 
+          r['estado'] == 'confirmada' || r['estado'] == 'activa' || r['estado'] == 'lista_de_espera');
+
+      if (hasActive) {
         if (mounted) {
-          final estadoTxt = existing['estado'] == 'cancelada' 
-              ? 'cancelada (debes crear una nueva o contactar al admin)' 
-              : 'existente';
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Ya tienes una reserva $estadoTxt para esta clase.'), backgroundColor: AppColors.error),
+            const SnackBar(content: Text('Ya tienes una reserva activa para esta clase.'), backgroundColor: AppColors.error),
           );
           setState(() => _isLoading = false);
         }
@@ -71,6 +71,8 @@ class _ClassDetailScreenState extends State<ClassDetailScreen> {
         'clase_id': widget.classData['id'],
         'estado': finalState,
       });
+
+      RefreshNotifier.notifyClient();
 
       if (mounted) {
         if (finalState == 'lista_de_espera') {
@@ -147,7 +149,7 @@ class _ClassDetailScreenState extends State<ClassDetailScreen> {
                           gradient: LinearGradient(
                             begin: Alignment.topCenter,
                             end: Alignment.bottomCenter,
-                            colors: [Colors.transparent, Colors.black.withOpacity(0.7)],
+                            colors: [Colors.transparent, Colors.black.withValues(alpha: 0.7)],
                           ),
                         ),
                       ),
@@ -162,7 +164,7 @@ class _ClassDetailScreenState extends State<ClassDetailScreen> {
                                 child: Container(
                                   padding: const EdgeInsets.all(8),
                                   decoration: BoxDecoration(
-                                    color: Colors.black.withOpacity(0.3),
+                                    color: Colors.black.withValues(alpha: 0.3),
                                     borderRadius: BorderRadius.circular(8),
                                   ),
                                   child: const Icon(Icons.arrow_back, color: AppColors.white, size: 20),
@@ -174,7 +176,7 @@ class _ClassDetailScreenState extends State<ClassDetailScreen> {
                                 child: Container(
                                   padding: const EdgeInsets.all(8),
                                   decoration: BoxDecoration(
-                                    color: Colors.black.withOpacity(0.3),
+                                    color: Colors.black.withValues(alpha: 0.3),
                                     borderRadius: BorderRadius.circular(8),
                                   ),
                                   child: const Icon(Icons.share, color: AppColors.white, size: 20),
@@ -287,7 +289,7 @@ class _ClassDetailScreenState extends State<ClassDetailScreen> {
             padding: const EdgeInsets.all(20),
             decoration: BoxDecoration(
               color: AppColors.white,
-              boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, -4))],
+              boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 10, offset: const Offset(0, -4))],
             ),
             child: SafeArea(
               top: false,

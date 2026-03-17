@@ -19,6 +19,8 @@ class _ClassFormScreenState extends State<ClassFormScreen> {
   final _descripcionController = TextEditingController();
   final _capacidadController = TextEditingController();
   final _ubicacionController = TextEditingController();
+  final _imagenUrlController = TextEditingController();
+  final _precioController = TextEditingController();
 
   String? _selectedInstructorId;
   String _selectedNivel = 'todos';
@@ -48,8 +50,10 @@ class _ClassFormScreenState extends State<ClassFormScreen> {
     _descripcionController.text = d['descripcion'] ?? '';
     _capacidadController.text = (d['capacidad_maxima'] ?? 20).toString();
     _ubicacionController.text = d['ubicacion'] ?? '';
+    _imagenUrlController.text = d['imagen_url'] ?? '';
+    _precioController.text = (d['precio'] ?? 0).toString();
     _selectedInstructorId = d['instructor_id'];
-    _selectedNivel = d['nivel'] ?? 'todos';
+    _selectedNivel = _niveles.contains(d['nivel']) ? d['nivel'] : 'todos';
     _activa = d['activa'] ?? true;
 
     if (d['fecha'] != null) {
@@ -79,14 +83,20 @@ class _ClassFormScreenState extends State<ClassFormScreen> {
       if (mounted) {
         setState(() {
           _instructors = data;
-          if (_selectedInstructorId == null && _instructors.isNotEmpty) {
-             // Try to select current user if not editing
-             final currentUser = _supabase.auth.currentUser;
-             if (currentUser != null) {
-                _selectedInstructorId = currentUser.id;
-             } else {
-                _selectedInstructorId = _instructors[0]['id'];
-             }
+          
+          // Safety: check if current selected instructor still exists in the freshly loaded list
+          final currentStillValid = _instructors.any((i) => i['id'] == _selectedInstructorId);
+          
+          if (!currentStillValid) {
+            // Try to select current user if not editing or if current selection is invalid
+            final currentUser = _supabase.auth.currentUser;
+            if (currentUser != null && _instructors.any((i) => i['id'] == currentUser.id)) {
+              _selectedInstructorId = currentUser.id;
+            } else if (_instructors.isNotEmpty) {
+              _selectedInstructorId = _instructors[0]['id'];
+            } else {
+              _selectedInstructorId = null;
+            }
           }
           _isLoading = false;
         });
@@ -141,6 +151,10 @@ class _ClassFormScreenState extends State<ClassFormScreen> {
     setState(() => _isSaving = true);
 
     try {
+      final startMinutes = _startTime.hour * 60 + _startTime.minute;
+      final endMinutes = _endTime.hour * 60 + _endTime.minute;
+      final duracion = endMinutes > startMinutes ? endMinutes - startMinutes : 0;
+
       final classData = {
         'nombre': _nombreController.text,
         'descripcion': _descripcionController.text,
@@ -152,6 +166,9 @@ class _ClassFormScreenState extends State<ClassFormScreen> {
         'ubicacion': _ubicacionController.text,
         'nivel': _selectedNivel,
         'activa': _activa,
+        'duracion_minutos': duracion,
+        'imagen_url': _imagenUrlController.text.trim().isEmpty ? null : _imagenUrlController.text.trim(),
+        'precio': double.tryParse(_precioController.text) ?? 0,
       };
 
       if (widget.classData == null) {
@@ -230,7 +247,7 @@ class _ClassFormScreenState extends State<ClassFormScreen> {
                 children: [
                   Expanded(
                     child: DropdownButtonFormField<String>(
-                      value: _selectedNivel,
+                      value: _niveles.contains(_selectedNivel) ? _selectedNivel : 'todos',
                       decoration: const InputDecoration(
                         labelText: 'Nivel',
                         filled: true,
@@ -256,22 +273,39 @@ class _ClassFormScreenState extends State<ClassFormScreen> {
                 ],
               ),
               const SizedBox(height: 16),
-              DropdownButtonFormField<String>(
-                value: _selectedInstructorId,
-                decoration: const InputDecoration(
-                  labelText: 'Instructor',
-                  filled: true,
-                  fillColor: AppColors.white,
+              if (_instructors.isEmpty)
+                Container(
+                  padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 12),
+                  decoration: BoxDecoration(
+                    color: Colors.amber.shade50,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.amber.shade200),
+                  ),
+                  child: const Row(
+                    children: [
+                      Icon(Icons.warning_amber_rounded, color: Colors.amber),
+                      SizedBox(width: 8),
+                      Expanded(child: Text('No hay instructores disponibles. Por favor, crea uno primero.')),
+                    ],
+                  ),
+                )
+              else
+                DropdownButtonFormField<String>(
+                  value: _instructors.any((i) => i['id'] == _selectedInstructorId) ? _selectedInstructorId : null,
+                  decoration: const InputDecoration(
+                    labelText: 'Instructor',
+                    filled: true,
+                    fillColor: AppColors.white,
+                  ),
+                  items: _instructors.map((i) {
+                    return DropdownMenuItem<String>(
+                      value: i['id'],
+                      child: Text(i['nombre_completo'] ?? 'Sin nombre'),
+                    );
+                  }).toList(),
+                  onChanged: (v) => setState(() => _selectedInstructorId = v),
+                  validator: (v) => v == null ? 'Selecciona un instructor' : null,
                 ),
-                items: _instructors.map((i) {
-                  return DropdownMenuItem<String>(
-                    value: i['id'],
-                    child: Text(i['nombre_completo'] ?? 'Sin nombre'),
-                  );
-                }).toList(),
-                onChanged: (v) => setState(() => _selectedInstructorId = v),
-                validator: (v) => v == null ? 'Selecciona un instructor' : null,
-              ),
               const SizedBox(height: 16),
               Row(
                 children: [
@@ -338,6 +372,49 @@ class _ClassFormScreenState extends State<ClassFormScreen> {
                 onChanged: (v) => setState(() => _activa = v),
                 tileColor: AppColors.white,
               ),
+              const SizedBox(height: 16),
+              TextFormField(
+                controller: _imagenUrlController,
+                decoration: const InputDecoration(
+                  labelText: 'URL de Imagen (opcional)',
+                  hintText: 'https://ejemplo.com/imagen.jpg',
+                  filled: true,
+                  fillColor: AppColors.white,
+                ),
+                onChanged: (_) => setState(() {}),
+              ),
+              if (_imagenUrlController.text.isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.only(top: 16),
+                  child: Container(
+                    height: 160,
+                    width: double.infinity,
+                    clipBehavior: Clip.antiAlias,
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(12),
+                      color: AppColors.chipBackground,
+                    ),
+                    child: Image.network(
+                      _imagenUrlController.text,
+                      fit: BoxFit.cover,
+                      errorBuilder: (context, error, stackTrace) => const Center(
+                        child: Icon(Icons.image_not_supported, size: 48, color: AppColors.textTertiary),
+                      ),
+                    ),
+                  ),
+                ),
+              const SizedBox(height: 16),
+              TextFormField(
+                controller: _precioController,
+                keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                decoration: const InputDecoration(
+                  labelText: 'Precio',
+                  hintText: '0.00',
+                  prefixText: '\$ ',
+                  filled: true,
+                  fillColor: AppColors.white,
+                ),
+              ),
               const SizedBox(height: 32),
               SizedBox(
                 width: double.infinity,
@@ -366,6 +443,8 @@ class _ClassFormScreenState extends State<ClassFormScreen> {
     _descripcionController.dispose();
     _capacidadController.dispose();
     _ubicacionController.dispose();
+    _imagenUrlController.dispose();
+    _precioController.dispose();
     super.dispose();
   }
 }

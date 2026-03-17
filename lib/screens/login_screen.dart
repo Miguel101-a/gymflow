@@ -43,7 +43,6 @@ class _LoginScreenState extends State<LoginScreen> {
       );
 
       if (response.user != null) {
-        // Fetch role from perfiles, fallback to cliente if fails
         String role = 'cliente';
         try {
           final profile = await _supabase
@@ -55,7 +54,6 @@ class _LoginScreenState extends State<LoginScreen> {
           if (profile != null) {
             role = profile['rol'] ?? 'cliente';
           } else {
-             // Intenta recrear si no existe
              await _supabase.from('perfiles').upsert({
                 'id': response.user!.id,
                 'email': response.user!.email,
@@ -88,6 +86,74 @@ class _LoginScreenState extends State<LoginScreen> {
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
+  }
+
+  void _showForgotPasswordDialog() {
+    final resetEmailController = TextEditingController();
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Recuperar Contraseña'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text('Ingresa tu correo electrónico y te enviaremos un enlace para restablecer tu contraseña.'),
+            const SizedBox(height: 16),
+            TextField(
+              controller: resetEmailController,
+              keyboardType: TextInputType.emailAddress,
+              decoration: const InputDecoration(
+                hintText: 'tu@email.com',
+                prefixIcon: Icon(Icons.email_outlined),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancelar'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              final email = resetEmailController.text.trim();
+              if (email.isEmpty) return;
+              try {
+                await _supabase.auth.resetPasswordForEmail(email);
+                if (context.mounted) {
+                  Navigator.pop(context);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Se envió un enlace de recuperación a tu correo'),
+                      backgroundColor: AppColors.success,
+                    ),
+                  );
+                }
+              } catch (e) {
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('Error: $e'),
+                      backgroundColor: AppColors.error,
+                    ),
+                  );
+                }
+              }
+            },
+            child: const Text('Enviar'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showComingSoon() {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Inicio de sesión social próximamente'),
+        duration: Duration(seconds: 2),
+      ),
+    );
   }
 
   @override
@@ -198,7 +264,7 @@ class _LoginScreenState extends State<LoginScreen> {
                               ),
                             ),
                             GestureDetector(
-                              onTap: () {},
+                              onTap: _showForgotPasswordDialog,
                               child: const Text(
                                 '¿Olvidaste tu contraseña?',
                                 style: TextStyle(
@@ -214,6 +280,7 @@ class _LoginScreenState extends State<LoginScreen> {
                         TextField(
                           controller: _passwordController,
                           obscureText: _obscurePassword,
+                          onSubmitted: (_) => _signIn(),
                           decoration: InputDecoration(
                             hintText: 'Introduce tu contraseña',
                             prefixIcon: const Icon(Icons.lock_outline, color: AppColors.textTertiary, size: 22),
@@ -262,7 +329,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       children: [
                         Expanded(
                           child: OutlinedButton.icon(
-                            onPressed: () {},
+                            onPressed: _showComingSoon,
                             icon: const Text('G', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
                             label: const Text('Google'),
                             style: OutlinedButton.styleFrom(
@@ -273,7 +340,7 @@ class _LoginScreenState extends State<LoginScreen> {
                         const SizedBox(width: 16),
                         Expanded(
                           child: OutlinedButton.icon(
-                            onPressed: () {},
+                            onPressed: _showComingSoon,
                             icon: const Icon(Icons.apple),
                             label: const Text('Apple'),
                             style: OutlinedButton.styleFrom(

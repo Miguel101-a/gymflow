@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../theme/app_colors.dart';
+import '../../utils/refresh_notifier.dart';
 import 'client_shell.dart';
 
 class DashboardScreen extends StatefulWidget {
@@ -15,11 +16,23 @@ class _DashboardScreenState extends State<DashboardScreen> {
   String _userName = '';
   bool _isLoading = true;
   List<dynamic> _upcomingClasses = [];
+  List<dynamic> _notifications = [];
 
   @override
   void initState() {
     super.initState();
     _loadData();
+    RefreshNotifier.clientRefresh.addListener(_onRefresh);
+  }
+
+  void _onRefresh() {
+    _loadData();
+  }
+
+  @override
+  void dispose() {
+    RefreshNotifier.clientRefresh.removeListener(_onRefresh);
+    super.dispose();
   }
 
   Future<void> _loadData() async {
@@ -46,10 +59,19 @@ class _DashboardScreenState extends State<DashboardScreen> {
           .order('created_at', ascending: false)
           .limit(5);
 
+      // Fetch notifications
+      final notifications = await _supabase
+          .from('comunicaciones')
+          .select()
+          .inFilter('grupo_destinatario', ['todos', 'clientes'])
+          .order('created_at', ascending: false)
+          .limit(10);
+
       if (mounted) {
         setState(() {
           _userName = profile['nombre_completo'] ?? 'Usuario';
           _upcomingClasses = reservations;
+          _notifications = notifications;
           _isLoading = false;
         });
       }
@@ -78,13 +100,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
     }
   }
 
-  void _showNotifications() {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('No tienes notificaciones nuevas'),
-        duration: Duration(seconds: 2),
-      ),
-    );
+  void _showNotificationsList() {
+    Navigator.pushNamed(context, '/notifications');
   }
 
   void _showProfileMenu() {
@@ -126,6 +143,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
         ),
       ],
     ).then((value) {
+      if (!mounted) return;
       if (value == 'profile') {
         final shellState = context.findAncestorStateOfType<ClientShellState>();
         if (shellState != null) {
@@ -171,6 +189,20 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 child: Row(
                   children: [
                     GestureDetector(
+                      onTap: () {
+                        context.findAncestorStateOfType<ClientShellState>()?.openDrawer();
+                      },
+                      child: Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: AppColors.white,
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: const Icon(Icons.menu, color: AppColors.textPrimary),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    GestureDetector(
                       onTap: _showProfileMenu,
                       child: const CircleAvatar(
                         radius: 24,
@@ -188,7 +220,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     ),
                     const Spacer(),
                     GestureDetector(
-                      onTap: _showNotifications,
+                      onTap: _showNotificationsList,
                       child: Stack(
                         children: [
                           Container(
@@ -199,15 +231,16 @@ class _DashboardScreenState extends State<DashboardScreen> {
                             ),
                             child: const Icon(Icons.notifications_outlined, color: AppColors.textPrimary),
                           ),
-                          Positioned(
-                            right: 6,
-                            top: 6,
-                            child: Container(
-                              width: 10,
-                              height: 10,
-                              decoration: const BoxDecoration(color: AppColors.primary, shape: BoxShape.circle),
+                          if (_notifications.isNotEmpty)
+                            Positioned(
+                              right: 6,
+                              top: 6,
+                              child: Container(
+                                width: 10,
+                                height: 10,
+                                decoration: const BoxDecoration(color: AppColors.primary, shape: BoxShape.circle),
+                              ),
                             ),
-                          ),
                         ],
                       ),
                     ),
@@ -485,7 +518,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           Container(
             padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
-              color: color.withOpacity(0.1),
+              color: color.withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(12),
             ),
             child: Icon(icon, color: color, size: 22),

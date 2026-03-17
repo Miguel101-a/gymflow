@@ -188,7 +188,12 @@ class _CalendarScreenState extends State<CalendarScreen> {
                             if (horaInicio.length > 5) horaInicio = horaInicio.substring(0, 5);
                             if (horaFin.length > 5) horaFin = horaFin.substring(0, 5);
 
-                            return Container(
+                            return GestureDetector(
+                              onTap: () async {
+                                final result = await Navigator.pushNamed(context, '/admin/class_form', arguments: cl);
+                                if (result == true) _fetchClassesForDate();
+                              },
+                              child: Container(
                               margin: const EdgeInsets.only(bottom: 12),
                               padding: const EdgeInsets.all(16),
                               decoration: BoxDecoration(
@@ -201,7 +206,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
                                   Container(
                                     padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                                     decoration: BoxDecoration(
-                                      color: AppColors.primary.withOpacity(0.1),
+                                      color: AppColors.primary.withValues(alpha: 0.1),
                                       borderRadius: BorderRadius.circular(8),
                                     ),
                                     child: Column(
@@ -223,9 +228,10 @@ class _CalendarScreenState extends State<CalendarScreen> {
                                       ],
                                     ),
                                   ),
-                                  const Icon(Icons.chevron_right, color: AppColors.textTertiary),
+                                  const Icon(Icons.edit_outlined, color: AppColors.textTertiary, size: 20),
                                 ],
                               ),
+                            ),
                             );
                           },
                         ),

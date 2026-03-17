@@ -3,17 +3,21 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'theme/app_theme.dart';
 import 'screens/login_screen.dart';
 import 'screens/register_screen.dart';
+import 'screens/update_password_screen.dart';
 import 'screens/client/client_shell.dart';
 import 'screens/client/class_detail_screen.dart';
 import 'screens/client/edit_profile_screen.dart';
 import 'screens/client/profile_screen.dart';
+import 'screens/client/notifications_screen.dart';
 import 'screens/admin/admin_shell.dart';
 import 'screens/admin/manage_class_screen.dart';
 import 'screens/admin/student_management_screen.dart';
 import 'screens/admin/communications_screen.dart';
 import 'screens/admin/class_form_screen.dart';
 
-Future<void> main() async {
+final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
+
+void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   
   await Supabase.initialize(
@@ -40,6 +44,16 @@ class _GymFlowAppState extends State<GymFlowApp> {
   void initState() {
     super.initState();
     _checkInitialAuth();
+    _setupAuthListener();
+  }
+
+  void _setupAuthListener() {
+    _supabase.auth.onAuthStateChange.listen((data) {
+      final event = data.event;
+      if (event == AuthChangeEvent.passwordRecovery) {
+        navigatorKey.currentState?.pushNamed('/update-password');
+      }
+    });
   }
 
   Future<void> _checkInitialAuth() async {
@@ -91,12 +105,14 @@ class _GymFlowAppState extends State<GymFlowApp> {
 
     return MaterialApp(
       title: 'GymFlow',
+      navigatorKey: navigatorKey,
       debugShowCheckedModeBanner: false,
       theme: AppTheme.lightTheme,
       initialRoute: _initialRoute,
       routes: {
         '/login': (context) => const LoginScreen(),
         '/register': (context) => const RegisterScreen(),
+        '/update-password': (context) => const UpdatePasswordScreen(),
         '/client': (context) => const ClientShell(),
         '/classDetail': (context) {
           final args = ModalRoute.of(context)!.settings.arguments as Map<String, dynamic>;
@@ -104,6 +120,7 @@ class _GymFlowAppState extends State<GymFlowApp> {
         },
         '/editProfile': (context) => const EditProfileScreen(),
         '/profile': (context) => const ProfileScreen(),
+        '/notifications': (context) => const NotificationsScreen(),
         '/admin': (context) => const AdminRouteGuard(),
         '/manageClass': (context) => const ManageClassScreen(),
         '/students': (context) => const StudentManagementScreen(),

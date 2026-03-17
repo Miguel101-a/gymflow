@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../theme/app_colors.dart';
+import '../../utils/refresh_notifier.dart';
 
 class AdminDashboardScreen extends StatefulWidget {
   const AdminDashboardScreen({super.key});
@@ -15,12 +16,24 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   int _totalStudents = 0;
   int _totalClasses = 0;
   int _totalReservations = 0;
+  int _totalCommunications = 0;
   List<dynamic> _recentReservations = [];
 
   @override
   void initState() {
     super.initState();
     _fetchDashboardData();
+    RefreshNotifier.adminRefresh.addListener(_onRefresh);
+  }
+
+  void _onRefresh() {
+    _fetchDashboardData();
+  }
+
+  @override
+  void dispose() {
+    RefreshNotifier.adminRefresh.removeListener(_onRefresh);
+    super.dispose();
   }
 
   Future<void> _fetchDashboardData() async {
@@ -42,6 +55,11 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
           .from('reservas')
           .select('id');
 
+      // Count communications
+      final comms = await _supabase
+          .from('comunicaciones')
+          .select('id');
+
       // Get recent reservations
       final recent = await _supabase
           .from('reservas')
@@ -54,6 +72,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
           _totalStudents = students.length;
           _totalClasses = classes.length;
           _totalReservations = reservations.length;
+          _totalCommunications = comms.length;
           _recentReservations = recent;
           _isLoading = false;
         });
@@ -128,7 +147,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                   children: [
                     Expanded(child: _buildStatCard('Reservas', _totalReservations.toString(), Icons.calendar_today, AppColors.warning)),
                     const SizedBox(width: 12),
-                    Expanded(child: _buildStatCard('', '', Icons.more_horiz, AppColors.textTertiary, isEmpty: true)),
+                    Expanded(child: _buildStatCard('Mensajes', _totalCommunications.toString(), Icons.mail_outline, AppColors.primaryLight)),
                   ],
                 ),
               ),
@@ -201,7 +220,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                               Container(
                                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                                 decoration: BoxDecoration(
-                                  color: statusColor.withOpacity(0.1),
+                                  color: statusColor.withValues(alpha: 0.1),
                                   borderRadius: BorderRadius.circular(6),
                                 ),
                                 child: Text(

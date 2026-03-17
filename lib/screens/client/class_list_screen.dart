@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../theme/app_colors.dart';
+import '../../utils/refresh_notifier.dart';
 import 'client_shell.dart';
 
 class ClassListScreen extends StatefulWidget {
@@ -12,13 +13,32 @@ class ClassListScreen extends StatefulWidget {
 
 class _ClassListScreenState extends State<ClassListScreen> {
   final _supabase = Supabase.instance.client;
-  List<dynamic> _classes = [];
+  List<dynamic> _allClasses = [];
+  List<dynamic> _filteredClasses = [];
   bool _isLoading = true;
+  final _searchController = TextEditingController();
+
+  // Filter state
+  String? _selectedNivel;
+  final List<String> _niveles = ['todos', 'principiante', 'intermedio', 'avanzado'];
 
   @override
   void initState() {
     super.initState();
     _fetchClasses();
+    _searchController.addListener(_applyFilters);
+    RefreshNotifier.clientRefresh.addListener(_onRefresh);
+  }
+
+  void _onRefresh() {
+    _fetchClasses();
+  }
+
+  @override
+  void dispose() {
+    RefreshNotifier.clientRefresh.removeListener(_onRefresh);
+    _searchController.dispose();
+    super.dispose();
   }
 
   Future<void> _fetchClasses() async {
@@ -31,13 +51,32 @@ class _ClassListScreenState extends State<ClassListScreen> {
           
       if (mounted) {
         setState(() {
-          _classes = data;
+          _allClasses = data;
           _isLoading = false;
         });
+        _applyFilters();
       }
     } catch (e) {
       if (mounted) setState(() => _isLoading = false);
     }
+  }
+
+  void _applyFilters() {
+    final query = _searchController.text.toLowerCase();
+    setState(() {
+      _filteredClasses = _allClasses.where((cl) {
+        // Search filter
+        final nombre = (cl['nombre'] ?? '').toString().toLowerCase();
+        final instructor = (cl['instructor']?['nombre_completo'] ?? '').toString().toLowerCase();
+        final matchesSearch = query.isEmpty || nombre.contains(query) || instructor.contains(query);
+
+        // Level filter
+        final nivel = (cl['nivel'] ?? '').toString();
+        final matchesNivel = _selectedNivel == null || _selectedNivel == 'todos' || nivel == _selectedNivel;
+
+        return matchesSearch && matchesNivel;
+      }).toList();
+    });
   }
 
   void _showProfileMenu() {
@@ -79,6 +118,7 @@ class _ClassListScreenState extends State<ClassListScreen> {
         ),
       ],
     ).then((value) {
+      if (!mounted) return;
       if (value == 'profile') {
         final shellState = context.findAncestorStateOfType<ClientShellState>();
         if (shellState != null) shellState.switchTab(3);
@@ -98,6 +138,17 @@ class _ClassListScreenState extends State<ClassListScreen> {
     }
   }
 
+  void _selectNivel(String nivel) {
+    setState(() {
+      if (_selectedNivel == nivel) {
+        _selectedNivel = null; // deselect
+      } else {
+        _selectedNivel = nivel;
+      }
+    });
+    _applyFilters();
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -111,13 +162,19 @@ class _ClassListScreenState extends State<ClassListScreen> {
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
               child: Row(
                 children: [
-                  Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: AppColors.backgroundLight,
-                      borderRadius: BorderRadius.circular(8),
+                  GestureDetector(
+                    onTap: () {
+                      final shellState = context.findAncestorStateOfType<ClientShellState>();
+                      if (shellState != null) shellState.openDrawer();
+                    },
+                    child: Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: AppColors.backgroundLight,
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: const Icon(Icons.menu, size: 20),
                     ),
-                    child: const Icon(Icons.menu, size: 20),
                   ),
                   const Expanded(
                     child: Text(
@@ -142,9 +199,18 @@ class _ClassListScreenState extends State<ClassListScreen> {
               color: AppColors.white,
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
               child: TextField(
+                controller: _searchController,
                 decoration: InputDecoration(
                   hintText: 'Buscar clases o instructores',
                   prefixIcon: const Icon(Icons.search, color: AppColors.textTertiary),
+                  suffixIcon: _searchController.text.isNotEmpty
+                      ? IconButton(
+                          icon: const Icon(Icons.clear, size: 18),
+                          onPressed: () {
+                            _searchController.clear();
+                          },
+                        )
+                      : null,
                   filled: true,
                   fillColor: AppColors.backgroundLight,
                   border: OutlineInputBorder(
@@ -159,28 +225,53 @@ class _ClassListScreenState extends State<ClassListScreen> {
             Container(
               color: AppColors.white,
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              child: Row(
-                children: [
-                  _buildFilterChip('Tipo de Clase', true),
-                  const SizedBox(width: 8),
-                  _buildFilterChip('Instructor', false),
-                  const SizedBox(width: 8),
-                  _buildFilterChip('Día', false),
-                ],
+              child: SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: Row(
+                  children: _niveles.map((nivel) {
+                    final isSelected = _selectedNivel == nivel;
+                    return Padding(
+                      padding: const EdgeInsets.only(right: 8),
+                      child: GestureDetector(
+                        onTap: () => _selectNivel(nivel),
+                        child: _buildFilterChip(
+                          nivel == 'todos' ? 'Todos' : nivel[0].toUpperCase() + nivel.substring(1),
+                          isSelected,
+                        ),
+                      ),
+                    );
+                  }).toList(),
+                ),
               ),
             ),
             const SizedBox(height: 4),
             // Class list
             _isLoading
                 ? const Expanded(child: Center(child: CircularProgressIndicator()))
-                : _classes.isEmpty
-                    ? const Expanded(child: Center(child: Text('No hay clases disponibles')))
+                : _filteredClasses.isEmpty
+                    ? Expanded(
+                        child: Center(
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              const Icon(Icons.search_off, size: 48, color: AppColors.textTertiary),
+                              const SizedBox(height: 12),
+                              Text(
+                                _searchController.text.isNotEmpty || _selectedNivel != null
+                                    ? 'No se encontraron clases con esos filtros'
+                                    : 'No hay clases disponibles',
+                                style: const TextStyle(fontSize: 14, color: AppColors.textSecondary),
+                              ),
+                            ],
+                          ),
+                        ),
+                      )
                     : Expanded(
                         child: ListView.builder(
                           padding: const EdgeInsets.all(16),
-                          itemCount: _classes.length,
+                          itemCount: _filteredClasses.length,
                           itemBuilder: (context, index) {
-                            final cl = _classes[index];
+                            final cl = _filteredClasses[index];
                             final instructorName = cl['instructor']?['nombre_completo'] ?? 'Instructor';
                             
                             final fecha = cl['fecha']?.toString() ?? '';
@@ -228,8 +319,10 @@ class _ClassListScreenState extends State<ClassListScreen> {
               color: selected ? AppColors.white : AppColors.textPrimary,
             ),
           ),
-          const SizedBox(width: 4),
-          Icon(Icons.keyboard_arrow_down, size: 16, color: selected ? AppColors.white : AppColors.textSecondary),
+          if (selected) ...[
+            const SizedBox(width: 4),
+            Icon(Icons.close, size: 14, color: selected ? AppColors.white : AppColors.textSecondary),
+          ],
         ],
       ),
     );
@@ -255,7 +348,15 @@ class _ClassListScreenState extends State<ClassListScreen> {
                     height: 160,
                     width: double.infinity,
                     color: AppColors.chipBackground,
-                    child: const Center(child: Icon(Icons.fitness_center, size: 48, color: AppColors.primary)),
+                    child: classData['imagen_url'] != null && classData['imagen_url'].toString().isNotEmpty
+                        ? Image.network(
+                            classData['imagen_url'],
+                            fit: BoxFit.cover,
+                            errorBuilder: (context, error, stackTrace) => const Center(
+                              child: Icon(Icons.fitness_center, size: 48, color: AppColors.primary),
+                            ),
+                          )
+                        : const Center(child: Icon(Icons.fitness_center, size: 48, color: AppColors.primary)),
                   ),
                 ),
               ],
@@ -268,7 +369,7 @@ class _ClassListScreenState extends State<ClassListScreen> {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Text(title, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
+                      Expanded(child: Text(title, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700))),
                       Text(spots, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.primary)),
                     ],
                   ),

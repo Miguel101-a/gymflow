@@ -37,14 +37,11 @@ class GymFlowApp extends StatefulWidget {
 
 class _GymFlowAppState extends State<GymFlowApp> {
   final _supabase = Supabase.instance.client;
-  String _initialRoute = '/login';
-  bool _isLoading = true;
   bool _isRecoveringPassword = false;
 
   @override
   void initState() {
     super.initState();
-    _checkInitialAuth();
     _setupAuthListener();
   }
 
@@ -57,87 +54,57 @@ class _GymFlowAppState extends State<GymFlowApp> {
 
       if (event == AuthChangeEvent.passwordRecovery) {
         _isRecoveringPassword = true;
-        navigatorKey.currentState?.pushNamedAndRemoveUntil('/update-password', (r) => false);
+        navigatorKey.currentState?.pushNamedAndRemoveUntil(
+          '/update-password', (r) => false,
+        );
         return;
       }
 
-      if (event == AuthChangeEvent.signedIn && session != null) {
-        // Skip role-based navigation if this sign-in is part of a password recovery flow
-        if (_isRecoveringPassword) return;
+      // Skip any navigation if we are in the middle of a password recovery flow
+      if (_isRecoveringPassword) return;
 
-        try {
-          final profile = await _supabase
-              .from('perfiles')
-              .select('rol')
-              .eq('id', session.user.id)
-              .single();
+      if (event == AuthChangeEvent.initialSession ||
+          event == AuthChangeEvent.signedIn) {
+        if (session != null) {
+          try {
+            final profile = await _supabase
+                .from('perfiles')
+                .select('rol')
+                .eq('id', session.user.id)
+                .single();
 
-          if (profile['rol'] == 'admin') {
-            navigatorKey.currentState?.pushNamedAndRemoveUntil('/admin', (r) => false);
-          } else {
-            navigatorKey.currentState?.pushNamedAndRemoveUntil('/client', (r) => false);
+            // Re-check after the async gap: passwordRecovery may have fired
+            // while the profile query was in flight.
+            if (_isRecoveringPassword) return;
+
+            if (profile['rol'] == 'admin') {
+              navigatorKey.currentState?.pushNamedAndRemoveUntil('/admin', (r) => false);
+            } else {
+              navigatorKey.currentState?.pushNamedAndRemoveUntil('/client', (r) => false);
+            }
+          } catch (e) {
+            if (_isRecoveringPassword) return;
+            navigatorKey.currentState?.pushNamedAndRemoveUntil('/login', (r) => false);
           }
-        } catch (e) {
+        } else {
           navigatorKey.currentState?.pushNamedAndRemoveUntil('/login', (r) => false);
         }
       }
     });
   }
 
-  Future<void> _checkInitialAuth() async {
-    final session = _supabase.auth.currentSession;
-    if (session != null) {
-      try {
-        final response = await _supabase
-            .from('perfiles')
-            .select('rol')
-            .eq('id', session.user.id)
-            .single();
-
-        if (response['rol'] == 'admin') {
-          setState(() {
-            _initialRoute = '/admin';
-            _isLoading = false;
-          });
-        } else {
-          setState(() {
-            _initialRoute = '/client';
-            _isLoading = false;
-          });
-        }
-      } catch (e) {
-        setState(() {
-          _initialRoute = '/login';
-          _isLoading = false;
-        });
-      }
-    } else {
-      setState(() {
-        _initialRoute = '/login';
-        _isLoading = false;
-      });
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
-    if (_isLoading) {
-      return const MaterialApp(
-        home: Scaffold(
-          body: Center(
-            child: CircularProgressIndicator(),
-          ),
-        ),
-      );
-    }
-
     return MaterialApp(
       title: 'GymFlow',
       navigatorKey: navigatorKey,
       debugShowCheckedModeBanner: false,
       theme: AppTheme.lightTheme,
-      initialRoute: _initialRoute,
+      initialRoute: '/',
       routes: {
+        '/': (context) => const Scaffold(
+          body: Center(child: CircularProgressIndicator()),
+        ),
         '/login': (context) => const LoginScreen(),
         '/register': (context) => const RegisterScreen(),
         '/update-password': (context) => const UpdatePasswordScreen(),

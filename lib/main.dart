@@ -39,6 +39,7 @@ class _GymFlowAppState extends State<GymFlowApp> {
   final _supabase = Supabase.instance.client;
   String _initialRoute = '/login';
   bool _isLoading = true;
+  bool _isRecoveringPassword = false;
 
   @override
   void initState() {
@@ -55,10 +56,15 @@ class _GymFlowAppState extends State<GymFlowApp> {
       print("AUTH EVENT: $event");
 
       if (event == AuthChangeEvent.passwordRecovery) {
-        navigatorKey.currentState?.pushNamed('/update-password');
+        _isRecoveringPassword = true;
+        navigatorKey.currentState?.pushNamedAndRemoveUntil('/update-password', (r) => false);
+        return;
       }
 
       if (event == AuthChangeEvent.signedIn && session != null) {
+        // Skip role-based navigation if this sign-in is part of a password recovery flow
+        if (_isRecoveringPassword) return;
+
         try {
           final profile = await _supabase
               .from('perfiles')

@@ -119,7 +119,7 @@ class _LoginScreenState extends State<LoginScreen> {
               final email = resetEmailController.text.trim();
               if (email.isEmpty) return;
               try {
-                await _supabase.auth.resetPasswordForEmail(email,redirectTo: 'https://gymflow-wine.vercel.app/#/update-password',);
+                await _supabase.auth.resetPasswordForEmail(email, redirectTo: 'https://gymflow-wine.vercel.app/',);
                 if (context.mounted) {
                   Navigator.pop(context);
                   ScaffoldMessenger.of(context).showSnackBar(

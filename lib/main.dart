@@ -66,6 +66,20 @@ class _GymFlowAppState extends State<GymFlowApp> {
 
       if (event == AuthChangeEvent.initialSession ||
           event == AuthChangeEvent.signedIn) {
+        // Detect recovery flow from browser URL when Supabase emits signedIn
+        // instead of passwordRecovery
+        final uri = Uri.base;
+        final isRecoveryLink = uri.queryParameters.containsKey('code');
+
+        if (isRecoveryLink) {
+          _isRecoveringPassword = true;
+          navigatorKey.currentState?.pushNamedAndRemoveUntil(
+            '/update-password',
+            (r) => false,
+          );
+          return;
+        }
+
         if (session != null) {
           try {
             final profile = await _supabase

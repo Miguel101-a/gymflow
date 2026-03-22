@@ -55,7 +55,7 @@ class _GymFlowAppState extends State<GymFlowApp> {
 
       // Detect recovery flow from browser URL before any event checks
       final uri = Uri.base;
-      final isRecoveryLink = uri.queryParameters.containsKey('code');
+      final isRecoveryLink = uri.queryParameters.containsKey('code') || uri.fragment.contains('access_token');
 
       if (isRecoveryLink) {
         _isRecoveringPassword = true;

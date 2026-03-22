@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+
 import 'theme/app_theme.dart';
 import 'screens/login_screen.dart';
 import 'screens/register_screen.dart';
@@ -19,10 +20,10 @@ final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  
+
   await Supabase.initialize(
     url: 'https://contgdzeveppbqnttfqo.supabase.co',
-    anonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNvbnRnZHpldmVwcGJxbnR0ZnFvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzI0OTQzNjMsImV4cCI6MjA4ODA3MDM2M30.tFoE5M_-wkeNkelIbO214Dm39TjbAzobO5Eb9lbrK4E',
+    anonKey: 'TU_ANON_KEY_AQUI',
     authOptions: const FlutterAuthClientOptions(),
   );
 
@@ -38,12 +39,46 @@ class GymFlowApp extends StatefulWidget {
 
 class _GymFlowAppState extends State<GymFlowApp> {
   final _supabase = Supabase.instance.client;
+
+  bool _handledInitialRoute = false;
   bool _isRecoveringPassword = false;
 
   @override
   void initState() {
     super.initState();
     _setupAuthListener();
+    _handleInitialRecoveryLink();
+  }
+
+  Future<void> _handleInitialRecoveryLink() async {
+    final uri = Uri.base;
+    final code = uri.queryParameters['code'];
+
+    if (code == null || code.isEmpty) {
+      return;
+    }
+
+    _isRecoveringPassword = true;
+
+    try {
+      await _supabase.auth.exchangeCodeForSession(code);
+
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        navigatorKey.currentState?.pushNamedAndRemoveUntil(
+          '/update-password',
+          (route) => false,
+        );
+      });
+    } catch (_) {
+      _isRecoveringPassword = false;
+
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        navigatorKey.currentState?.pushNamedAndRemoveUntil(
+          '/login',
+          (route) => false,
+        );
+      });
+    }
   }
 
   void _setupAuthListener() {
@@ -51,62 +86,79 @@ class _GymFlowAppState extends State<GymFlowApp> {
       final event = data.event;
       final session = data.session;
 
-      print("AUTH EVENT: $event");
+      if (_isRecoveringPassword) {
+        if (event == AuthChangeEvent.passwordRecovery) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            navigatorKey.currentState?.pushNamedAndRemoveUntil(
+              '/update-password',
+              (route) => false,
+            );
+          });
+        }
+        return;
+      }
 
-      // Detect recovery flow from browser URL before any event checks
-      final uri = Uri.base;
-      final isRecoveryLink = uri.queryParameters.containsKey('code') || uri.fragment.contains('access_token');
+      if (event == AuthChangeEvent.initialSession) {
+        if (_handledInitialRoute) return;
+        _handledInitialRoute = true;
 
-      if (isRecoveryLink) {
-        _isRecoveringPassword = true;
+        if (session == null) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            navigatorKey.currentState?.pushNamedAndRemoveUntil(
+              '/login',
+              (route) => false,
+            );
+          });
+          return;
+        }
+
+        await _navigateByRole(session.user.id);
+        return;
+      }
+
+      if (event == AuthChangeEvent.signedIn && session != null) {
+        if (_handledInitialRoute == false) {
+          _handledInitialRoute = true;
+        }
+        await _navigateByRole(session.user.id);
+        return;
+      }
+
+      if (event == AuthChangeEvent.signedOut) {
         WidgetsBinding.instance.addPostFrameCallback((_) {
           navigatorKey.currentState?.pushNamedAndRemoveUntil(
-            '/update-password',
-            (r) => false,
+            '/login',
+            (route) => false,
           );
         });
-        return;
-      }
-
-      if (event == AuthChangeEvent.passwordRecovery) {
-        _isRecoveringPassword = true;
-        navigatorKey.currentState?.pushNamedAndRemoveUntil(
-          '/update-password', (r) => false,
-        );
-        return;
-      }
-
-      // Skip any navigation if we are in the middle of a password recovery flow
-      if (_isRecoveringPassword) return;
-
-      if (event == AuthChangeEvent.initialSession ||
-          event == AuthChangeEvent.signedIn) {
-        if (session != null) {
-          try {
-            final profile = await _supabase
-                .from('perfiles')
-                .select('rol')
-                .eq('id', session.user.id)
-                .single();
-
-            // Re-check after the async gap: passwordRecovery may have fired
-            // while the profile query was in flight.
-            if (_isRecoveringPassword) return;
-
-            if (profile['rol'] == 'admin') {
-              navigatorKey.currentState?.pushNamedAndRemoveUntil('/admin', (r) => false);
-            } else {
-              navigatorKey.currentState?.pushNamedAndRemoveUntil('/client', (r) => false);
-            }
-          } catch (e) {
-            if (_isRecoveringPassword) return;
-            navigatorKey.currentState?.pushNamedAndRemoveUntil('/login', (r) => false);
-          }
-        } else {
-          navigatorKey.currentState?.pushNamedAndRemoveUntil('/login', (r) => false);
-        }
       }
     });
+  }
+
+  Future<void> _navigateByRole(String userId) async {
+    try {
+      final profile = await _supabase
+          .from('perfiles')
+          .select('rol')
+          .eq('id', userId)
+          .single();
+
+      final route = profile['rol'] == 'admin' ? '/admin' : '/client';
+
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        navigatorKey.currentState?.pushNamedAndRemoveUntil(
+          route,
+          (route) => false,
+        );
+      });
+    } catch (_) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        navigatorKey.currentState?.pushNamedAndRemoveUntil(
+          '/login',
+          (route) => false,
+        );
+      });
+    }
   }
 
   @override
@@ -119,14 +171,17 @@ class _GymFlowAppState extends State<GymFlowApp> {
       initialRoute: '/',
       routes: {
         '/': (context) => const Scaffold(
-          body: Center(child: CircularProgressIndicator()),
-        ),
+              body: Center(
+                child: CircularProgressIndicator(),
+              ),
+            ),
         '/login': (context) => const LoginScreen(),
         '/register': (context) => const RegisterScreen(),
         '/update-password': (context) => const UpdatePasswordScreen(),
         '/client': (context) => const ClientShell(),
         '/classDetail': (context) {
-          final args = ModalRoute.of(context)!.settings.arguments as Map<String, dynamic>;
+          final args =
+              ModalRoute.of(context)!.settings.arguments as Map<String, dynamic>;
           return ClassDetailScreen(classData: args);
         },
         '/editProfile': (context) => const EditProfileScreen(),
@@ -137,7 +192,8 @@ class _GymFlowAppState extends State<GymFlowApp> {
         '/students': (context) => const StudentManagementScreen(),
         '/communications': (context) => const CommunicationsScreen(),
         '/admin/class_form': (context) {
-          final args = ModalRoute.of(context)!.settings.arguments as Map<String, dynamic>?;
+          final args = ModalRoute.of(context)!.settings.arguments
+              as Map<String, dynamic>?;
           return ClassFormScreen(classData: args);
         },
       },
@@ -145,8 +201,6 @@ class _GymFlowAppState extends State<GymFlowApp> {
   }
 }
 
-/// Route guard that checks if the current user is an admin before showing AdminShell.
-/// Non-admin users are redirected to /client.
 class AdminRouteGuard extends StatefulWidget {
   const AdminRouteGuard({super.key});
 
@@ -181,17 +235,17 @@ class _AdminRouteGuardState extends State<AdminRouteGuard> {
           .eq('id', user.id)
           .single();
 
-      if (mounted) {
-        if (profile['rol'] == 'admin') {
-          setState(() {
-            _isAdmin = true;
-            _isChecking = false;
-          });
-        } else {
-          Navigator.pushReplacementNamed(context, '/client');
-        }
+      if (!mounted) return;
+
+      if (profile['rol'] == 'admin') {
+        setState(() {
+          _isAdmin = true;
+          _isChecking = false;
+        });
+      } else {
+        Navigator.pushReplacementNamed(context, '/client');
       }
-    } catch (e) {
+    } catch (_) {
       if (mounted) {
         Navigator.pushReplacementNamed(context, '/login');
       }
@@ -205,9 +259,11 @@ class _AdminRouteGuardState extends State<AdminRouteGuard> {
         body: Center(child: CircularProgressIndicator()),
       );
     }
+
     if (_isAdmin) {
       return const AdminShell();
     }
+
     return const SizedBox.shrink();
   }
 }

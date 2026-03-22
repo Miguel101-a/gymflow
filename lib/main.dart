@@ -73,10 +73,12 @@ class _GymFlowAppState extends State<GymFlowApp> {
 
         if (isRecoveryLink) {
           _isRecoveringPassword = true;
-          navigatorKey.currentState?.pushNamedAndRemoveUntil(
-            '/update-password',
-            (r) => false,
-          );
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            navigatorKey.currentState?.pushNamedAndRemoveUntil(
+              '/update-password',
+              (r) => false,
+            );
+          });
           return;
         }
 

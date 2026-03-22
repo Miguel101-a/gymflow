@@ -39,46 +39,12 @@ class GymFlowApp extends StatefulWidget {
 
 class _GymFlowAppState extends State<GymFlowApp> {
   final _supabase = Supabase.instance.client;
-
   bool _handledInitialRoute = false;
-  bool _isRecoveringPassword = false;
 
   @override
   void initState() {
     super.initState();
     _setupAuthListener();
-    _handleInitialRecoveryLink();
-  }
-
-  Future<void> _handleInitialRecoveryLink() async {
-    final uri = Uri.base;
-    final code = uri.queryParameters['code'];
-
-    if (code == null || code.isEmpty) {
-      return;
-    }
-
-    _isRecoveringPassword = true;
-
-    try {
-      await _supabase.auth.exchangeCodeForSession(code);
-
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        navigatorKey.currentState?.pushNamedAndRemoveUntil(
-          '/update-password',
-          (route) => false,
-        );
-      });
-    } catch (_) {
-      _isRecoveringPassword = false;
-
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        navigatorKey.currentState?.pushNamedAndRemoveUntil(
-          '/login',
-          (route) => false,
-        );
-      });
-    }
   }
 
   void _setupAuthListener() {
@@ -86,15 +52,16 @@ class _GymFlowAppState extends State<GymFlowApp> {
       final event = data.event;
       final session = data.session;
 
-      if (_isRecoveringPassword) {
-        if (event == AuthChangeEvent.passwordRecovery) {
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            navigatorKey.currentState?.pushNamedAndRemoveUntil(
-              '/update-password',
-              (route) => false,
-            );
-          });
-        }
+      // Maneja recuperación de contraseña primero — supabase_flutter 2.x
+      // intercambia el ?code= automáticamente durante initialize() y dispara
+      // este evento. Solo hay que escucharlo y navegar.
+      if (event == AuthChangeEvent.passwordRecovery) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          navigatorKey.currentState?.pushNamedAndRemoveUntil(
+            '/update-password',
+            (route) => false,
+          );
+        });
         return;
       }
 
@@ -117,7 +84,7 @@ class _GymFlowAppState extends State<GymFlowApp> {
       }
 
       if (event == AuthChangeEvent.signedIn && session != null) {
-        if (_handledInitialRoute == false) {
+        if (!_handledInitialRoute) {
           _handledInitialRoute = true;
         }
         await _navigateByRole(session.user.id);

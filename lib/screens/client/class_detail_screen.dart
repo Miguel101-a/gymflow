@@ -30,7 +30,7 @@ class _ClassDetailScreenState extends State<ClassDetailScreen> {
     setState(() => _isLoading = true);
 
     try {
-      // 1. Comprobar reserva existente activa
+      // 1. Comprobar si ya tiene una reserva activa
       final existingList = await _supabase
           .from('reservas')
           .select('id, estado')
@@ -46,8 +46,7 @@ class _ClassDetailScreenState extends State<ClassDetailScreen> {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
-                content:
-                    Text('Ya tienes una reserva activa para esta clase.'),
+                content: Text('Ya tienes una reserva activa para esta clase.'),
                 backgroundColor: AppColors.error),
           );
           setState(() => _isLoading = false);
@@ -64,34 +63,33 @@ class _ClassDetailScreenState extends State<ClassDetailScreen> {
 
       final currentReservations = (checkCapacity as List).length;
       final maxCapacity = widget.classData['capacidad_maxima'] ?? 20;
-
-      String finalState =
+      final finalState =
           currentReservations >= maxCapacity ? 'lista_de_espera' : 'confirmada';
 
       // 3. Crear reserva en tabla "reservas"
-      final reservaResult = await _supabase
-          .from('reservas')
-          .insert({
-            'usuario_id': user.id,
-            'clase_id': widget.classData['id'],
-            'estado': finalState,
-          })
-          .select('id')
-          .single();
-
-      // ── 4. Insertar en tabla "estudiantes" ─────────────────────────────────
-      // Genera un código de estudiante simple: EST-<timestamp>
-      final codigoEstudiante =
-          'EST-${DateTime.now().millisecondsSinceEpoch.toString().substring(7)}';
-
-      await _supabase.from('estudiantes').insert({
-        'perfil_id': user.id,
+      await _supabase.from('reservas').insert({
+        'usuario_id': user.id,
         'clase_id': widget.classData['id'],
-        'codigo_estudiante': codigoEstudiante,
-        'estado': finalState,            // mismo estado que la reserva
-        // 'reserva_id': reservaResult['id'],  // descomenta si tienes esta columna
+        'estado': finalState,
       });
-      // ────────────────────────────────────────────────────────────────────────
+
+      // 4. Intentar insertar en tabla "estudiantes"
+      // Se hace en un try-catch independiente para que un fallo aquí
+      // NO cancele la reserva ya creada correctamente en el paso 3.
+      try {
+        final codigo =
+            'EST-${DateTime.now().millisecondsSinceEpoch.toString().substring(6)}';
+        await _supabase.from('estudiantes').insert({
+          'perfil_id': user.id,
+          'clase_id': widget.classData['id'],
+          'codigo_estudiante': codigo,
+          'estado': finalState,
+        });
+      } catch (e) {
+        // Si falla la inserción en estudiantes (ej. por RLS),
+        // la reserva ya fue guardada — solo registra el error silenciosamente.
+        debugPrint('Advertencia: no se pudo insertar en estudiantes: $e');
+      }
 
       RefreshNotifier.notifyClient();
 
@@ -99,8 +97,7 @@ class _ClassDetailScreenState extends State<ClassDetailScreen> {
         if (finalState == 'lista_de_espera') {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
-                content:
-                    Text('Clase llena. Añadido a la lista de espera.'),
+                content: Text('Clase llena. Añadido a la lista de espera.'),
                 backgroundColor: AppColors.warning),
           );
         } else {
@@ -129,8 +126,7 @@ class _ClassDetailScreenState extends State<ClassDetailScreen> {
   Widget build(BuildContext context) {
     final classData = widget.classData;
     final nombre = classData['nombre'] ?? 'Clase sin nombre';
-    final descripcion =
-        classData['descripcion'] ?? 'Sin descripción disponible.';
+    final descripcion = classData['descripcion'] ?? 'Sin descripción disponible.';
     final instructor =
         classData['instructor']?['nombre_completo'] ?? 'Instructor asignado';
     final capacidadMaxima = classData['capacidad_maxima'] ?? 0;
@@ -138,12 +134,10 @@ class _ClassDetailScreenState extends State<ClassDetailScreen> {
     final nivel = classData['nivel'] ?? 'Todos los Niveles';
     final duracionMinutos = classData['duracion_minutos'];
 
-    String duration =
-        duracionMinutos != null ? '$duracionMinutos min' : 'N/A';
+    String duration = duracionMinutos != null ? '$duracionMinutos min' : 'N/A';
     String startTimeStr = classData['hora_inicio']?.toString() ?? 'N/A';
     String endTimeStr = classData['hora_fin']?.toString() ?? 'N/A';
-    String dateStr =
-        classData['fecha']?.toString() ?? 'Fecha no disponible';
+    String dateStr = classData['fecha']?.toString() ?? 'Fecha no disponible';
 
     if (startTimeStr.length > 5) startTimeStr = startTimeStr.substring(0, 5);
     if (endTimeStr.length > 5) endTimeStr = endTimeStr.substring(0, 5);
@@ -194,16 +188,14 @@ class _ClassDetailScreenState extends State<ClassDetailScreen> {
                           padding: const EdgeInsets.symmetric(
                               horizontal: 16, vertical: 8),
                           child: Row(
-                            mainAxisAlignment:
-                                MainAxisAlignment.spaceBetween,
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
                               GestureDetector(
                                 onTap: () => Navigator.pop(context),
                                 child: Container(
                                   padding: const EdgeInsets.all(8),
                                   decoration: BoxDecoration(
-                                    color:
-                                        Colors.black.withValues(alpha: 0.3),
+                                    color: Colors.black.withValues(alpha: 0.3),
                                     borderRadius: BorderRadius.circular(8),
                                   ),
                                   child: const Icon(Icons.arrow_back,
@@ -219,8 +211,7 @@ class _ClassDetailScreenState extends State<ClassDetailScreen> {
                                 child: Container(
                                   padding: const EdgeInsets.all(8),
                                   decoration: BoxDecoration(
-                                    color:
-                                        Colors.black.withValues(alpha: 0.3),
+                                    color: Colors.black.withValues(alpha: 0.3),
                                     borderRadius: BorderRadius.circular(8),
                                   ),
                                   child: const Icon(Icons.share,
@@ -232,9 +223,7 @@ class _ClassDetailScreenState extends State<ClassDetailScreen> {
                         ),
                       ),
                       Positioned(
-                        bottom: 20,
-                        left: 20,
-                        right: 20,
+                        bottom: 20, left: 20, right: 20,
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
@@ -245,8 +234,7 @@ class _ClassDetailScreenState extends State<ClassDetailScreen> {
                                 color: AppColors.primary,
                                 borderRadius: BorderRadius.circular(6),
                               ),
-                              child: Text(
-                                  nivel.toString().toUpperCase(),
+                              child: Text(nivel.toString().toUpperCase(),
                                   style: const TextStyle(
                                       color: AppColors.white,
                                       fontSize: 11,
@@ -269,8 +257,7 @@ class _ClassDetailScreenState extends State<ClassDetailScreen> {
                       spacing: 10,
                       children: [
                         _buildInfoChip(Icons.access_time, duration),
-                        _buildInfoChip(
-                            Icons.bar_chart, nivel.toString()),
+                        _buildInfoChip(Icons.bar_chart, nivel.toString()),
                         _buildInfoChip(Icons.people_outline,
                             '$capacidadMaxima Plazas Máximas'),
                       ],
@@ -283,16 +270,13 @@ class _ClassDetailScreenState extends State<ClassDetailScreen> {
                       children: [
                         const Text('Sobre esta clase',
                             style: TextStyle(
-                                fontSize: 18,
-                                fontWeight: FontWeight.w700)),
+                                fontSize: 18, fontWeight: FontWeight.w700)),
                         const SizedBox(height: 10),
-                        Text(
-                          descripcion,
-                          style: const TextStyle(
-                              fontSize: 14,
-                              color: AppColors.textSecondary,
-                              height: 1.5),
-                        ),
+                        Text(descripcion,
+                            style: const TextStyle(
+                                fontSize: 14,
+                                color: AppColors.textSecondary,
+                                height: 1.5)),
                       ],
                     ),
                   ),
@@ -349,9 +333,7 @@ class _ClassDetailScreenState extends State<ClassDetailScreen> {
                             fontSize: 18, fontWeight: FontWeight.w700)),
                   ),
                   const SizedBox(height: 12),
-                  _buildScheduleItem(
-                      Icons.calendar_today,
-                      dateStr,
+                  _buildScheduleItem(Icons.calendar_today, dateStr,
                       '$startTimeStr - $endTimeStr'),
                   _buildScheduleItem(
                       Icons.location_on_outlined, ubicacion, 'Gimnasio'),
@@ -385,11 +367,9 @@ class _ClassDetailScreenState extends State<ClassDetailScreen> {
                   ),
                   child: _isLoading
                       ? const SizedBox(
-                          height: 20,
-                          width: 20,
+                          height: 20, width: 20,
                           child: CircularProgressIndicator(
-                              color: AppColors.white, strokeWidth: 2),
-                        )
+                              color: AppColors.white, strokeWidth: 2))
                       : const Text('Reservar Clase',
                           style: TextStyle(
                               fontSize: 16,
@@ -418,15 +398,13 @@ class _ClassDetailScreenState extends State<ClassDetailScreen> {
           Icon(icon, size: 16, color: AppColors.textPrimary),
           const SizedBox(width: 6),
           Text(label,
-              style: const TextStyle(
-                  fontSize: 13, fontWeight: FontWeight.w600)),
+              style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
         ],
       ),
     );
   }
 
-  Widget _buildScheduleItem(
-      IconData icon, String title, String subtitle) {
+  Widget _buildScheduleItem(IconData icon, String title, String subtitle) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 6),
       child: Row(

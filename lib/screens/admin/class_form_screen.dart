@@ -1,4 +1,6 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../theme/app_colors.dart';
 
@@ -19,8 +21,13 @@ class _ClassFormScreenState extends State<ClassFormScreen> {
   final _descripcionController = TextEditingController();
   final _capacidadController = TextEditingController();
   final _ubicacionController = TextEditingController();
-  final _imagenUrlController = TextEditingController();
   final _precioController = TextEditingController();
+
+  // ── Imagen ──────────────────────────────────────────────────────────────────
+  XFile? _pickedImage;           // archivo seleccionado del dispositivo
+  String? _existingImageUrl;     // URL existente al editar una clase
+  bool _isUploadingImage = false;
+  // ────────────────────────────────────────────────────────────────────────────
 
   String? _selectedInstructorId;
   String _selectedNivel = 'todos';
@@ -50,11 +57,11 @@ class _ClassFormScreenState extends State<ClassFormScreen> {
     _descripcionController.text = d['descripcion'] ?? '';
     _capacidadController.text = (d['capacidad_maxima'] ?? 20).toString();
     _ubicacionController.text = d['ubicacion'] ?? '';
-    _imagenUrlController.text = d['imagen_url'] ?? '';
     _precioController.text = (d['precio'] ?? 0).toString();
     _selectedInstructorId = d['instructor_id'];
     _selectedNivel = _niveles.contains(d['nivel']) ? d['nivel'] : 'todos';
     _activa = d['activa'] ?? true;
+    _existingImageUrl = d['imagen_url'];          // guarda la URL existente
 
     if (d['fecha'] != null) {
       _selectedDate = DateTime.parse(d['fecha']);
@@ -78,19 +85,17 @@ class _ClassFormScreenState extends State<ClassFormScreen> {
       final data = await _supabase
           .from('perfiles')
           .select('id, nombre_completo')
-          .eq('rol', 'admin'); // Assuming admins can be instructors or we have a specific role.
+          .eq('rol', 'admin');
 
       if (mounted) {
         setState(() {
           _instructors = data;
-          
-          // Safety: check if current selected instructor still exists in the freshly loaded list
-          final currentStillValid = _instructors.any((i) => i['id'] == _selectedInstructorId);
-          
+          final currentStillValid =
+              _instructors.any((i) => i['id'] == _selectedInstructorId);
           if (!currentStillValid) {
-            // Try to select current user if not editing or if current selection is invalid
             final currentUser = _supabase.auth.currentUser;
-            if (currentUser != null && _instructors.any((i) => i['id'] == currentUser.id)) {
+            if (currentUser != null &&
+                _instructors.any((i) => i['id'] == currentUser.id)) {
               _selectedInstructorId = currentUser.id;
             } else if (_instructors.isNotEmpty) {
               _selectedInstructorId = _instructors[0]['id'];
@@ -105,6 +110,129 @@ class _ClassFormScreenState extends State<ClassFormScreen> {
       if (mounted) setState(() => _isLoading = false);
     }
   }
+
+  // ── Seleccionar imagen del dispositivo (PNG o JPG) ──────────────────────────
+  Future<void> _pickImage() async {
+    final picker = ImagePicker();
+
+    // Muestra un bottom sheet para elegir galería o cámara
+    final source = await showModalBottomSheet<ImageSource>(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const SizedBox(height: 8),
+            Container(
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: Colors.grey.shade300,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            const SizedBox(height: 16),
+            const Text('Seleccionar imagen',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+            const SizedBox(height: 8),
+            ListTile(
+              leading: const Icon(Icons.photo_library_outlined),
+              title: const Text('Galería'),
+              onTap: () => Navigator.pop(ctx, ImageSource.gallery),
+            ),
+            ListTile(
+              leading: const Icon(Icons.camera_alt_outlined),
+              title: const Text('Cámara'),
+              onTap: () => Navigator.pop(ctx, ImageSource.camera),
+            ),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
+
+    if (source == null) return;
+
+    final XFile? image = await picker.pickImage(
+      source: source,
+      imageQuality: 85,       // comprime un poco para no subir archivos enormes
+      maxWidth: 1200,
+    );
+
+    if (image == null) return;
+
+    // Validar extensión: solo PNG y JPG
+    final ext = image.path.split('.').last.toLowerCase();
+    if (ext != 'png' && ext != 'jpg' && ext != 'jpeg') {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Solo se permiten imágenes PNG o JPG'),
+            backgroundColor: AppColors.error,
+          ),
+        );
+      }
+      return;
+    }
+
+    setState(() => _pickedImage = image);
+  }
+
+  // ── Quitar imagen seleccionada ──────────────────────────────────────────────
+  void _removeImage() {
+    setState(() {
+      _pickedImage = null;
+      _existingImageUrl = null;
+    });
+  }
+
+  // ── Subir imagen a Supabase Storage ────────────────────────────────────────
+  // IMPORTANTE: Debes crear un bucket llamado "clases-imagenes" en
+  // Supabase → Storage, con acceso público habilitado.
+  Future<String?> _uploadImage() async {
+    if (_pickedImage == null) return _existingImageUrl;
+
+    setState(() => _isUploadingImage = true);
+    try {
+      final bytes = await _pickedImage!.readAsBytes();
+      final ext = _pickedImage!.path.split('.').last.toLowerCase();
+      final mimeType = ext == 'png' ? 'image/png' : 'image/jpeg';
+
+      // Nombre único basado en timestamp
+      final fileName =
+          'clase_${DateTime.now().millisecondsSinceEpoch}.$ext';
+
+      await _supabase.storage
+          .from('clases-imagenes')       // ← nombre del bucket en Supabase
+          .uploadBinary(
+            fileName,
+            bytes,
+            fileOptions: FileOptions(contentType: mimeType, upsert: true),
+          );
+
+      final publicUrl = _supabase.storage
+          .from('clases-imagenes')
+          .getPublicUrl(fileName);
+
+      return publicUrl;
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error al subir imagen: $e'),
+            backgroundColor: AppColors.error,
+          ),
+        );
+      }
+      return _existingImageUrl; // si falla, mantiene la URL anterior
+    } finally {
+      if (mounted) setState(() => _isUploadingImage = false);
+    }
+  }
+  // ────────────────────────────────────────────────────────────────────────────
 
   Future<void> _selectDate(BuildContext context) async {
     final DateTime? picked = await showDatePicker(
@@ -143,7 +271,8 @@ class _ClassFormScreenState extends State<ClassFormScreen> {
   Future<void> _saveClass() async {
     if (!_formKey.currentState!.validate() || _selectedInstructorId == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Por favor, completa todos los campos requeridos.')),
+        const SnackBar(
+            content: Text('Por favor, completa todos los campos requeridos.')),
       );
       return;
     }
@@ -151,31 +280,34 @@ class _ClassFormScreenState extends State<ClassFormScreen> {
     setState(() => _isSaving = true);
 
     try {
+      // Sube la imagen si hay una nueva seleccionada
+      final imageUrl = await _uploadImage();
+
       final startMinutes = _startTime.hour * 60 + _startTime.minute;
       final endMinutes = _endTime.hour * 60 + _endTime.minute;
-      final duracion = endMinutes > startMinutes ? endMinutes - startMinutes : 0;
+      final duracion =
+          endMinutes > startMinutes ? endMinutes - startMinutes : 0;
 
       final classData = {
         'nombre': _nombreController.text,
         'descripcion': _descripcionController.text,
         'instructor_id': _selectedInstructorId,
         'capacidad_maxima': int.parse(_capacidadController.text),
-        'fecha': '${_selectedDate.year}-${_selectedDate.month.toString().padLeft(2, '0')}-${_selectedDate.day.toString().padLeft(2, '0')}',
+        'fecha':
+            '${_selectedDate.year}-${_selectedDate.month.toString().padLeft(2, '0')}-${_selectedDate.day.toString().padLeft(2, '0')}',
         'hora_inicio': _formatTime(_startTime),
         'hora_fin': _formatTime(_endTime),
         'ubicacion': _ubicacionController.text,
         'nivel': _selectedNivel,
         'activa': _activa,
         'duracion_minutos': duracion,
-        'imagen_url': _imagenUrlController.text.trim().isEmpty ? null : _imagenUrlController.text.trim(),
+        'imagen_url': imageUrl,                   // URL subida o null
         'precio': double.tryParse(_precioController.text) ?? 0,
       };
 
       if (widget.classData == null) {
-        // Create
         await _supabase.from('clases').insert(classData);
       } else {
-        // Update
         classData['updated_at'] = DateTime.now().toIso8601String();
         await _supabase
             .from('clases')
@@ -185,14 +317,20 @@ class _ClassFormScreenState extends State<ClassFormScreen> {
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Clase guardada exitosamente'), backgroundColor: AppColors.success),
+          const SnackBar(
+            content: Text('Clase guardada exitosamente'),
+            backgroundColor: AppColors.success,
+          ),
         );
-        Navigator.pop(context, true); // Return true to signal refresh
+        Navigator.pop(context, true);
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error al guardar: $e'), backgroundColor: AppColors.error),
+          SnackBar(
+            content: Text('Error al guardar: $e'),
+            backgroundColor: AppColors.error,
+          ),
         );
       }
     } finally {
@@ -207,6 +345,7 @@ class _ClassFormScreenState extends State<ClassFormScreen> {
     }
 
     final isEditing = widget.classData != null;
+    final hasImage = _pickedImage != null || _existingImageUrl != null;
 
     return Scaffold(
       backgroundColor: AppColors.backgroundLight,
@@ -223,6 +362,7 @@ class _ClassFormScreenState extends State<ClassFormScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              // ── Nombre ─────────────────────────────────────────────────────
               TextFormField(
                 controller: _nombreController,
                 decoration: const InputDecoration(
@@ -233,6 +373,8 @@ class _ClassFormScreenState extends State<ClassFormScreen> {
                 validator: (v) => v!.isEmpty ? 'Requerido' : null,
               ),
               const SizedBox(height: 16),
+
+              // ── Descripción ────────────────────────────────────────────────
               TextFormField(
                 controller: _descripcionController,
                 maxLines: 3,
@@ -243,17 +385,25 @@ class _ClassFormScreenState extends State<ClassFormScreen> {
                 ),
               ),
               const SizedBox(height: 16),
+
+              // ── Nivel + Capacidad ──────────────────────────────────────────
               Row(
                 children: [
                   Expanded(
                     child: DropdownButtonFormField<String>(
-                      value: _niveles.contains(_selectedNivel) ? _selectedNivel : 'todos',
+                      value: _niveles.contains(_selectedNivel)
+                          ? _selectedNivel
+                          : 'todos',
                       decoration: const InputDecoration(
                         labelText: 'Nivel',
                         filled: true,
                         fillColor: AppColors.white,
                       ),
-                      items: _niveles.map((n) => DropdownMenuItem(value: n, child: Text(n.toUpperCase()))).toList(),
+                      items: _niveles
+                          .map((n) => DropdownMenuItem(
+                              value: n,
+                              child: Text(n.toUpperCase())))
+                          .toList(),
                       onChanged: (v) => setState(() => _selectedNivel = v!),
                     ),
                   ),
@@ -273,9 +423,12 @@ class _ClassFormScreenState extends State<ClassFormScreen> {
                 ],
               ),
               const SizedBox(height: 16),
+
+              // ── Instructor ─────────────────────────────────────────────────
               if (_instructors.isEmpty)
                 Container(
-                  padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 12),
+                  padding:
+                      const EdgeInsets.symmetric(vertical: 16, horizontal: 12),
                   decoration: BoxDecoration(
                     color: Colors.amber.shade50,
                     borderRadius: BorderRadius.circular(8),
@@ -285,13 +438,17 @@ class _ClassFormScreenState extends State<ClassFormScreen> {
                     children: [
                       Icon(Icons.warning_amber_rounded, color: Colors.amber),
                       SizedBox(width: 8),
-                      Expanded(child: Text('No hay instructores disponibles. Por favor, crea uno primero.')),
+                      Expanded(
+                          child: Text(
+                              'No hay instructores disponibles. Por favor, crea uno primero.')),
                     ],
                   ),
                 )
               else
                 DropdownButtonFormField<String>(
-                  value: _instructors.any((i) => i['id'] == _selectedInstructorId) ? _selectedInstructorId : null,
+                  value: _instructors.any((i) => i['id'] == _selectedInstructorId)
+                      ? _selectedInstructorId
+                      : null,
                   decoration: const InputDecoration(
                     labelText: 'Instructor',
                     filled: true,
@@ -304,27 +461,28 @@ class _ClassFormScreenState extends State<ClassFormScreen> {
                     );
                   }).toList(),
                   onChanged: (v) => setState(() => _selectedInstructorId = v),
-                  validator: (v) => v == null ? 'Selecciona un instructor' : null,
+                  validator: (v) =>
+                      v == null ? 'Selecciona un instructor' : null,
                 ),
               const SizedBox(height: 16),
-              Row(
-                children: [
-                  Expanded(
-                    child: InkWell(
-                      onTap: () => _selectDate(context),
-                      child: InputDecorator(
-                        decoration: const InputDecoration(
-                          labelText: 'Fecha',
-                          filled: true,
-                          fillColor: AppColors.white,
-                        ),
-                        child: Text('${_selectedDate.day}/${_selectedDate.month}/${_selectedDate.year}'),
-                      ),
-                    ),
+
+              // ── Fecha ──────────────────────────────────────────────────────
+              InkWell(
+                onTap: () => _selectDate(context),
+                child: InputDecorator(
+                  decoration: const InputDecoration(
+                    labelText: 'Fecha',
+                    filled: true,
+                    fillColor: AppColors.white,
+                    suffixIcon: Icon(Icons.calendar_today, size: 18),
                   ),
-                ],
+                  child: Text(
+                      '${_selectedDate.day}/${_selectedDate.month}/${_selectedDate.year}'),
+                ),
               ),
               const SizedBox(height: 16),
+
+              // ── Hora inicio / fin ──────────────────────────────────────────
               Row(
                 children: [
                   Expanded(
@@ -357,6 +515,8 @@ class _ClassFormScreenState extends State<ClassFormScreen> {
                 ],
               ),
               const SizedBox(height: 16),
+
+              // ── Ubicación ──────────────────────────────────────────────────
               TextFormField(
                 controller: _ubicacionController,
                 decoration: const InputDecoration(
@@ -366,6 +526,8 @@ class _ClassFormScreenState extends State<ClassFormScreen> {
                 ),
               ),
               const SizedBox(height: 16),
+
+              // ── Activa toggle ──────────────────────────────────────────────
               SwitchListTile(
                 title: const Text('Clase Activa'),
                 value: _activa,
@@ -373,40 +535,158 @@ class _ClassFormScreenState extends State<ClassFormScreen> {
                 tileColor: AppColors.white,
               ),
               const SizedBox(height: 16),
-              TextFormField(
-                controller: _imagenUrlController,
-                decoration: const InputDecoration(
-                  labelText: 'URL de Imagen (opcional)',
-                  hintText: 'https://ejemplo.com/imagen.jpg',
-                  filled: true,
-                  fillColor: AppColors.white,
-                ),
-                onChanged: (_) => setState(() {}),
+
+              // ── Imagen — NUEVO: subir desde dispositivo ────────────────────
+              const Text(
+                'Imagen de la Clase',
+                style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.textPrimary),
               ),
-              if (_imagenUrlController.text.isNotEmpty)
-                Padding(
-                  padding: const EdgeInsets.only(top: 16),
+              const SizedBox(height: 8),
+
+              if (!hasImage)
+                // Botón de selección cuando no hay imagen
+                GestureDetector(
+                  onTap: _pickImage,
                   child: Container(
                     height: 160,
                     width: double.infinity,
-                    clipBehavior: Clip.antiAlias,
                     decoration: BoxDecoration(
+                      color: AppColors.white,
                       borderRadius: BorderRadius.circular(12),
-                      color: AppColors.chipBackground,
+                      border: Border.all(
+                          color: AppColors.primary.withValues(alpha: 0.4),
+                          width: 1.5,
+                          style: BorderStyle.solid),
                     ),
-                    child: Image.network(
-                      _imagenUrlController.text,
-                      fit: BoxFit.cover,
-                      errorBuilder: (context, error, stackTrace) => const Center(
-                        child: Icon(Icons.image_not_supported, size: 48, color: AppColors.textTertiary),
-                      ),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.add_photo_alternate_outlined,
+                            size: 48, color: AppColors.primary),
+                        const SizedBox(height: 8),
+                        const Text('Toca para subir imagen',
+                            style: TextStyle(
+                                color: AppColors.primary,
+                                fontWeight: FontWeight.w600)),
+                        const SizedBox(height: 4),
+                        const Text('PNG o JPG',
+                            style: TextStyle(
+                                fontSize: 12,
+                                color: AppColors.textTertiary)),
+                      ],
                     ),
                   ),
+                )
+              else
+                // Vista previa de la imagen seleccionada / existente
+                Stack(
+                  children: [
+                    Container(
+                      height: 180,
+                      width: double.infinity,
+                      clipBehavior: Clip.antiAlias,
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(12),
+                        color: AppColors.chipBackground,
+                      ),
+                      child: _pickedImage != null
+                          // imagen recién seleccionada del dispositivo
+                          ? Image.file(
+                              File(_pickedImage!.path),
+                              fit: BoxFit.cover,
+                            )
+                          // imagen existente de Supabase
+                          : Image.network(
+                              _existingImageUrl!,
+                              fit: BoxFit.cover,
+                              errorBuilder: (ctx, err, st) => const Center(
+                                child: Icon(Icons.image_not_supported,
+                                    size: 48,
+                                    color: AppColors.textTertiary),
+                              ),
+                            ),
+                    ),
+                    // Botón de cambiar imagen
+                    Positioned(
+                      bottom: 8,
+                      left: 8,
+                      child: GestureDetector(
+                        onTap: _pickImage,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 12, vertical: 6),
+                          decoration: BoxDecoration(
+                            color: Colors.black.withValues(alpha: 0.6),
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                          child: const Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(Icons.edit, color: Colors.white, size: 14),
+                              SizedBox(width: 4),
+                              Text('Cambiar',
+                                  style: TextStyle(
+                                      color: Colors.white, fontSize: 12)),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                    // Botón de eliminar imagen
+                    Positioned(
+                      bottom: 8,
+                      right: 8,
+                      child: GestureDetector(
+                        onTap: _removeImage,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 12, vertical: 6),
+                          decoration: BoxDecoration(
+                            color: AppColors.error.withValues(alpha: 0.85),
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                          child: const Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(Icons.delete_outline,
+                                  color: Colors.white, size: 14),
+                              SizedBox(width: 4),
+                              Text('Quitar',
+                                  style: TextStyle(
+                                      color: Colors.white, fontSize: 12)),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                    // Indicador de carga al subir
+                    if (_isUploadingImage)
+                      Positioned.fill(
+                        child: Container(
+                          decoration: BoxDecoration(
+                            color: Colors.black.withValues(alpha: 0.5),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: const Center(
+                            child: CircularProgressIndicator(
+                                color: Colors.white),
+                          ),
+                        ),
+                      ),
+                  ],
                 ),
+              // ────────────────────────────────────────────────────────────────
+
               const SizedBox(height: 16),
+
+              // ── Precio ─────────────────────────────────────────────────────
               TextFormField(
                 controller: _precioController,
-                keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                keyboardType:
+                    const TextInputType.numberWithOptions(decimal: true),
                 decoration: const InputDecoration(
                   labelText: 'Precio',
                   hintText: '0.00',
@@ -416,18 +696,23 @@ class _ClassFormScreenState extends State<ClassFormScreen> {
                 ),
               ),
               const SizedBox(height: 32),
+
+              // ── Botón guardar ──────────────────────────────────────────────
               SizedBox(
                 width: double.infinity,
                 height: 50,
                 child: ElevatedButton(
-                  onPressed: _isSaving ? null : _saveClass,
+                  onPressed: (_isSaving || _isUploadingImage) ? null : _saveClass,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppColors.primary,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12)),
                   ),
-                  child: _isSaving
+                  child: (_isSaving || _isUploadingImage)
                       ? const CircularProgressIndicator(color: Colors.white)
-                      : const Text('Guardar Clase', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+                      : const Text('Guardar Clase',
+                          style: TextStyle(
+                              fontSize: 16, fontWeight: FontWeight.w600)),
                 ),
               ),
             ],
@@ -443,7 +728,6 @@ class _ClassFormScreenState extends State<ClassFormScreen> {
     _descripcionController.dispose();
     _capacidadController.dispose();
     _ubicacionController.dispose();
-    _imagenUrlController.dispose();
     _precioController.dispose();
     super.dispose();
   }

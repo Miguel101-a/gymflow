@@ -16,6 +16,52 @@ class _ClassDetailScreenState extends State<ClassDetailScreen> {
   final _supabase = Supabase.instance.client;
   bool _isLoading = false;
 
+  // Nombre del instructor — se resuelve en initState
+  String _instructorName = 'Cargando...';
+
+  @override
+  void initState() {
+    super.initState();
+    _resolveInstructor();
+  }
+
+  // ── Resolver nombre del instructor ──────────────────────────────────────────
+  // Primero intenta leerlo del objeto anidado que ya viene en classData.
+  // Si no está disponible (el join no se hizo en la pantalla anterior),
+  // hace una consulta directa a perfiles usando instructor_id.
+  Future<void> _resolveInstructor() async {
+    // 1. Intentar desde el objeto ya anidado (viene de class_list, dashboard, etc.)
+    final nested = widget.classData['instructor']?['nombre_completo'];
+    if (nested != null && nested.toString().trim().isNotEmpty) {
+      if (mounted) setState(() => _instructorName = nested.toString());
+      return;
+    }
+
+    // 2. Si no viene anidado, buscar por instructor_id en perfiles
+    final instructorId = widget.classData['instructor_id'];
+    if (instructorId == null) {
+      if (mounted) setState(() => _instructorName = 'Instructor asignado');
+      return;
+    }
+
+    try {
+      final data = await _supabase
+          .from('perfiles')
+          .select('nombre_completo')
+          .eq('id', instructorId)
+          .maybeSingle();
+
+      if (mounted) {
+        setState(() {
+          _instructorName = data?['nombre_completo'] ?? 'Instructor asignado';
+        });
+      }
+    } catch (e) {
+      if (mounted) setState(() => _instructorName = 'Instructor asignado');
+    }
+  }
+  // ────────────────────────────────────────────────────────────────────────────
+
   Future<void> _bookClass() async {
     final user = _supabase.auth.currentUser;
     if (user == null) {
@@ -73,9 +119,7 @@ class _ClassDetailScreenState extends State<ClassDetailScreen> {
         'estado': finalState,
       });
 
-      // 4. Intentar insertar en tabla "estudiantes"
-      // Se hace en un try-catch independiente para que un fallo aquí
-      // NO cancele la reserva ya creada correctamente en el paso 3.
+      // 4. Intentar insertar en tabla "estudiantes" (independiente del paso 3)
       try {
         final codigo =
             'EST-${DateTime.now().millisecondsSinceEpoch.toString().substring(6)}';
@@ -86,8 +130,6 @@ class _ClassDetailScreenState extends State<ClassDetailScreen> {
           'estado': finalState,
         });
       } catch (e) {
-        // Si falla la inserción en estudiantes (ej. por RLS),
-        // la reserva ya fue guardada — solo registra el error silenciosamente.
         debugPrint('Advertencia: no se pudo insertar en estudiantes: $e');
       }
 
@@ -126,9 +168,8 @@ class _ClassDetailScreenState extends State<ClassDetailScreen> {
   Widget build(BuildContext context) {
     final classData = widget.classData;
     final nombre = classData['nombre'] ?? 'Clase sin nombre';
-    final descripcion = classData['descripcion'] ?? 'Sin descripción disponible.';
-    final instructor =
-        classData['instructor']?['nombre_completo'] ?? 'Instructor asignado';
+    final descripcion =
+        classData['descripcion'] ?? 'Sin descripción disponible.';
     final capacidadMaxima = classData['capacidad_maxima'] ?? 0;
     final ubicacion = classData['ubicacion'] ?? 'Por definir';
     final nivel = classData['nivel'] ?? 'Todos los Niveles';
@@ -151,6 +192,7 @@ class _ClassDetailScreenState extends State<ClassDetailScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  // ── Imagen de cabecera ──────────────────────────────────────
                   Stack(
                     children: [
                       Container(
@@ -195,7 +237,8 @@ class _ClassDetailScreenState extends State<ClassDetailScreen> {
                                 child: Container(
                                   padding: const EdgeInsets.all(8),
                                   decoration: BoxDecoration(
-                                    color: Colors.black.withValues(alpha: 0.3),
+                                    color:
+                                        Colors.black.withValues(alpha: 0.3),
                                     borderRadius: BorderRadius.circular(8),
                                   ),
                                   child: const Icon(Icons.arrow_back,
@@ -207,16 +250,14 @@ class _ClassDetailScreenState extends State<ClassDetailScreen> {
                                       fontSize: 18,
                                       fontWeight: FontWeight.w700,
                                       color: AppColors.white)),
-                              GestureDetector(
-                                child: Container(
-                                  padding: const EdgeInsets.all(8),
-                                  decoration: BoxDecoration(
-                                    color: Colors.black.withValues(alpha: 0.3),
-                                    borderRadius: BorderRadius.circular(8),
-                                  ),
-                                  child: const Icon(Icons.share,
-                                      color: AppColors.white, size: 20),
+                              Container(
+                                padding: const EdgeInsets.all(8),
+                                decoration: BoxDecoration(
+                                  color: Colors.black.withValues(alpha: 0.3),
+                                  borderRadius: BorderRadius.circular(8),
                                 ),
+                                child: const Icon(Icons.share,
+                                    color: AppColors.white, size: 20),
                               ),
                             ],
                           ),
@@ -251,6 +292,8 @@ class _ClassDetailScreenState extends State<ClassDetailScreen> {
                       ),
                     ],
                   ),
+
+                  // ── Chips de info ───────────────────────────────────────────
                   Padding(
                     padding: const EdgeInsets.all(20),
                     child: Wrap(
@@ -263,6 +306,8 @@ class _ClassDetailScreenState extends State<ClassDetailScreen> {
                       ],
                     ),
                   ),
+
+                  // ── Descripción ─────────────────────────────────────────────
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 20),
                     child: Column(
@@ -281,6 +326,8 @@ class _ClassDetailScreenState extends State<ClassDetailScreen> {
                     ),
                   ),
                   const SizedBox(height: 24),
+
+                  // ── Instructor ──────────────────────────────────────────────
                   const Padding(
                     padding: EdgeInsets.symmetric(horizontal: 20),
                     child: Text('Tu Instructor',
@@ -309,10 +356,13 @@ class _ClassDetailScreenState extends State<ClassDetailScreen> {
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Text(instructor,
-                                    style: const TextStyle(
-                                        fontSize: 16,
-                                        fontWeight: FontWeight.w700)),
+                                // ← Ahora muestra el nombre real del instructor
+                                Text(
+                                  _instructorName,
+                                  style: const TextStyle(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.w700),
+                                ),
                                 const SizedBox(height: 2),
                                 const Text('Instructor de la Clase',
                                     style: TextStyle(
@@ -326,6 +376,8 @@ class _ClassDetailScreenState extends State<ClassDetailScreen> {
                     ),
                   ),
                   const SizedBox(height: 24),
+
+                  // ── Hora y Ubicación ────────────────────────────────────────
                   const Padding(
                     padding: EdgeInsets.symmetric(horizontal: 20),
                     child: Text('Hora y Ubicación',
@@ -342,6 +394,8 @@ class _ClassDetailScreenState extends State<ClassDetailScreen> {
               ),
             ),
           ),
+
+          // ── Botón Reservar ────────────────────────────────────────────────
           Container(
             padding: const EdgeInsets.all(20),
             decoration: BoxDecoration(
@@ -398,7 +452,8 @@ class _ClassDetailScreenState extends State<ClassDetailScreen> {
           Icon(icon, size: 16, color: AppColors.textPrimary),
           const SizedBox(width: 6),
           Text(label,
-              style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+              style: const TextStyle(
+                  fontSize: 13, fontWeight: FontWeight.w600)),
         ],
       ),
     );

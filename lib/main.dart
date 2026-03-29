@@ -15,6 +15,7 @@ import 'screens/admin/manage_class_screen.dart';
 import 'screens/admin/student_management_screen.dart';
 import 'screens/admin/communications_screen.dart';
 import 'screens/admin/class_form_screen.dart';
+import 'screens/instructor/instructor_shell.dart';  // ← nuevo
 
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
@@ -52,9 +53,6 @@ class _GymFlowAppState extends State<GymFlowApp> {
       final event = data.event;
       final session = data.session;
 
-      // Maneja recuperación de contraseña primero — supabase_flutter 2.x
-      // intercambia el ?code= automáticamente durante initialize() y dispara
-      // este evento. Solo hay que escucharlo y navegar.
       if (event == AuthChangeEvent.passwordRecovery) {
         WidgetsBinding.instance.addPostFrameCallback((_) {
           navigatorKey.currentState?.pushNamedAndRemoveUntil(
@@ -84,9 +82,7 @@ class _GymFlowAppState extends State<GymFlowApp> {
       }
 
       if (event == AuthChangeEvent.signedIn && session != null) {
-        if (!_handledInitialRoute) {
-          _handledInitialRoute = true;
-        }
+        if (!_handledInitialRoute) _handledInitialRoute = true;
         await _navigateByRole(session.user.id);
         return;
       }
@@ -110,7 +106,18 @@ class _GymFlowAppState extends State<GymFlowApp> {
           .eq('id', userId)
           .single();
 
-      final route = profile['rol'] == 'admin' ? '/admin' : '/client';
+      final rol = profile['rol'] as String;
+
+      // ── Enrutar según rol ──────────────────────────────────
+      String route;
+      if (rol == 'admin') {
+        route = '/admin';
+      } else if (rol == 'instructor') {
+        route = '/instructor';
+      } else {
+        route = '/client';
+      }
+      // ────────────────────────────────────────────────────────
 
       WidgetsBinding.instance.addPostFrameCallback((_) {
         navigatorKey.currentState?.pushNamedAndRemoveUntil(
@@ -138,23 +145,28 @@ class _GymFlowAppState extends State<GymFlowApp> {
       initialRoute: '/',
       routes: {
         '/': (context) => const Scaffold(
-              body: Center(
-                child: CircularProgressIndicator(),
-              ),
+              body: Center(child: CircularProgressIndicator()),
             ),
         '/login': (context) => const LoginScreen(),
         '/register': (context) => const RegisterScreen(),
         '/update-password': (context) => const UpdatePasswordScreen(),
+
+        // ── Cliente ────────────────────────────────────────────
         '/client': (context) => const ClientShell(),
         '/classDetail': (context) {
-          final args =
-              ModalRoute.of(context)!.settings.arguments as Map<String, dynamic>;
+          final args = ModalRoute.of(context)!.settings.arguments
+              as Map<String, dynamic>;
           return ClassDetailScreen(classData: args);
         },
         '/editProfile': (context) => const EditProfileScreen(),
         '/profile': (context) => const ProfileScreen(),
         '/notifications': (context) => const NotificationsScreen(),
-        '/admin': (context) => const AdminRouteGuard(),
+
+        // ── Admin ──────────────────────────────────────────────
+        '/admin': (context) => const RoleGuard(
+              requiredRoles: ['admin'],
+              child: AdminShell(),
+            ),
         '/manageClass': (context) => const ManageClassScreen(),
         '/students': (context) => const StudentManagementScreen(),
         '/communications': (context) => const CommunicationsScreen(),
@@ -163,35 +175,47 @@ class _GymFlowAppState extends State<GymFlowApp> {
               as Map<String, dynamic>?;
           return ClassFormScreen(classData: args);
         },
+
+        // ── Instructor ─────────────────────────────────────────
+        '/instructor': (context) => const RoleGuard(
+              requiredRoles: ['instructor', 'admin'],
+              child: InstructorShell(),
+            ),
       },
     );
   }
 }
 
-class AdminRouteGuard extends StatefulWidget {
-  const AdminRouteGuard({super.key});
+// ── Guard genérico para cualquier rol ────────────────────────
+class RoleGuard extends StatefulWidget {
+  final List<String> requiredRoles;
+  final Widget child;
+
+  const RoleGuard({
+    super.key,
+    required this.requiredRoles,
+    required this.child,
+  });
 
   @override
-  State<AdminRouteGuard> createState() => _AdminRouteGuardState();
+  State<RoleGuard> createState() => _RoleGuardState();
 }
 
-class _AdminRouteGuardState extends State<AdminRouteGuard> {
+class _RoleGuardState extends State<RoleGuard> {
   final _supabase = Supabase.instance.client;
   bool _isChecking = true;
-  bool _isAdmin = false;
+  bool _allowed = false;
 
   @override
   void initState() {
     super.initState();
-    _checkAdmin();
+    _checkRole();
   }
 
-  Future<void> _checkAdmin() async {
+  Future<void> _checkRole() async {
     final user = _supabase.auth.currentUser;
     if (user == null) {
-      if (mounted) {
-        Navigator.pushReplacementNamed(context, '/login');
-      }
+      if (mounted) Navigator.pushReplacementNamed(context, '/login');
       return;
     }
 
@@ -202,35 +226,36 @@ class _AdminRouteGuardState extends State<AdminRouteGuard> {
           .eq('id', user.id)
           .single();
 
+      final rol = profile['rol'] as String;
+
       if (!mounted) return;
 
-      if (profile['rol'] == 'admin') {
+      if (widget.requiredRoles.contains(rol)) {
         setState(() {
-          _isAdmin = true;
+          _allowed = true;
           _isChecking = false;
         });
       } else {
-        Navigator.pushReplacementNamed(context, '/client');
+        // Redirige al lugar correcto según su rol real
+        if (rol == 'admin') {
+          Navigator.pushReplacementNamed(context, '/admin');
+        } else if (rol == 'instructor') {
+          Navigator.pushReplacementNamed(context, '/instructor');
+        } else {
+          Navigator.pushReplacementNamed(context, '/client');
+        }
       }
     } catch (_) {
-      if (mounted) {
-        Navigator.pushReplacementNamed(context, '/login');
-      }
+      if (mounted) Navigator.pushReplacementNamed(context, '/login');
     }
   }
 
   @override
   Widget build(BuildContext context) {
     if (_isChecking) {
-      return const Scaffold(
-        body: Center(child: CircularProgressIndicator()),
-      );
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
-
-    if (_isAdmin) {
-      return const AdminShell();
-    }
-
+    if (_allowed) return widget.child;
     return const SizedBox.shrink();
   }
 }

@@ -84,7 +84,7 @@ class _ClassFormScreenState extends State<ClassFormScreen> {
       final data = await _supabase
           .from('perfiles')
           .select('id, nombre_completo')
-          .eq('rol', 'admin');
+          .inFilter('rol', ['admin', 'instructor']);
       if (mounted) {
         setState(() {
           _instructors = data;

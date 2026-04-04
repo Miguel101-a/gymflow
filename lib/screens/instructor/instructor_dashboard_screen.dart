@@ -14,11 +14,11 @@ class _InstructorDashboardScreenState
     extends State<InstructorDashboardScreen> {
   final _supabase = Supabase.instance.client;
   bool _isLoading = true;
-  String _instructorName = '';
-  int _totalMisClases = 0;
-  int _totalMisAlumnos = 0;
+  String _nombre = '';
+  int _misClases = 0;
+  int _misAlumnos = 0;
   int _clasesHoy = 0;
-  List<dynamic> _proximasClases = [];
+  List<dynamic> _proximas = [];
 
   @override
   void initState() {
@@ -29,68 +29,134 @@ class _InstructorDashboardScreenState
   Future<void> _fetchData() async {
     final user = _supabase.auth.currentUser;
     if (user == null) return;
-
     try {
-      // Nombre del instructor
       final perfil = await _supabase
           .from('perfiles')
           .select('nombre_completo')
           .eq('id', user.id)
           .single();
 
-      // Mis clases totales
-      final misClases = await _supabase
+      final clases = await _supabase
           .from('clases')
           .select('id')
           .eq('instructor_id', user.id)
           .eq('activa', true);
 
-      // Alumnos únicos en mis clases
-      final misAlumnos = await _supabase
+      final reservas = await _supabase
           .from('reservas')
           .select('usuario_id, clase:clases!inner(instructor_id)')
           .eq('clase.instructor_id', user.id)
           .eq('estado', 'confirmada');
 
-      // IDs únicos de alumnos
-      final alumnosSet = <String>{};
-      for (final r in misAlumnos) {
-        alumnosSet.add(r['usuario_id'].toString());
+      final alumnosUnicos = <String>{};
+      for (final r in reservas) {
+        alumnosUnicos.add(r['usuario_id'].toString());
       }
 
-      // Clases de hoy
       final hoy =
           '${DateTime.now().year}-${DateTime.now().month.toString().padLeft(2, '0')}-${DateTime.now().day.toString().padLeft(2, '0')}';
-      final hoyClases = await _supabase
+
+      final hoyData = await _supabase
           .from('clases')
           .select('id')
           .eq('instructor_id', user.id)
           .eq('fecha', hoy)
           .eq('activa', true);
 
-      // Próximas 3 clases
       final proximas = await _supabase
           .from('clases')
-          .select('nombre, fecha, hora_inicio, hora_fin, ubicacion, capacidad_maxima')
+          .select('nombre, fecha, hora_inicio, hora_fin, ubicacion')
           .eq('instructor_id', user.id)
           .eq('activa', true)
           .gte('fecha', hoy)
           .order('fecha', ascending: true)
           .order('hora_inicio', ascending: true)
-          .limit(3);
+          .limit(4);
 
       if (mounted) {
         setState(() {
-          _instructorName = perfil['nombre_completo'] ?? 'Instructor';
-          _totalMisClases = misClases.length;
-          _totalMisAlumnos = alumnosSet.length;
-          _clasesHoy = hoyClases.length;
-          _proximasClases = proximas;
+          _nombre = perfil['nombre_completo'] ?? 'Instructor';
+          _misClases = clases.length;
+          _misAlumnos = alumnosUnicos.length;
+          _clasesHoy = hoyData.length;
+          _proximas = proximas;
           _isLoading = false;
         });
       }
     } catch (e) {
       if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  // ── Diálogo de confirmación de cierre de sesión ───────────────────────────
+  Future<void> _confirmLogout() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => Dialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 72, height: 72,
+                decoration: BoxDecoration(
+                  color: Colors.orange.withValues(alpha: 0.1),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.logout, color: Colors.orange, size: 38),
+              ),
+              const SizedBox(height: 18),
+              const Text(
+                '¿Cerrar sesión?',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 10),
+              const Text(
+                '¿Estás seguro de que deseas salir de tu cuenta?',
+                style: TextStyle(fontSize: 14, color: AppColors.textSecondary, height: 1.4),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 22),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: () => Navigator.pop(ctx, false),
+                      style: OutlinedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        side: const BorderSide(color: AppColors.border),
+                      ),
+                      child: const Text('No, quedarme',
+                          style: TextStyle(fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: ElevatedButton(
+                      onPressed: () => Navigator.pop(ctx, true),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.orange,
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      ),
+                      child: const Text('Sí, salir',
+                          style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700)),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+
+    if (confirmed == true) {
+      await _supabase.auth.signOut();
     }
   }
 
@@ -106,65 +172,55 @@ class _InstructorDashboardScreenState
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // ── Header ───────────────────────────────────────────────
+                    // Header
                     Row(
                       children: [
                         Expanded(
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text('¡Hola, $_instructorName!',
-                                  style: const TextStyle(
-                                      fontSize: 22,
-                                      fontWeight: FontWeight.w700)),
-                              const SizedBox(height: 4),
-                              Text('Panel de Instructor',
-                                  style: TextStyle(
-                                      fontSize: 14,
-                                      color: AppColors.textSecondary)),
+                              Text('¡Hola, $_nombre!',
+                                  style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w700)),
+                              const SizedBox(height: 2),
+                              const Text('Panel de Instructor',
+                                  style: TextStyle(fontSize: 14, color: AppColors.textSecondary)),
                             ],
                           ),
                         ),
-                        // Cerrar sesión
+                        // Botón de cerrar sesión con confirmación
                         IconButton(
                           icon: const Icon(Icons.logout),
                           color: AppColors.textSecondary,
-                          onPressed: () async {
-                            await _supabase.auth.signOut();
-                          },
+                          onPressed: _confirmLogout,   // ← usa diálogo
+                          tooltip: 'Cerrar sesión',
                         ),
                       ],
                     ),
                     const SizedBox(height: 24),
 
-                    // ── Estadísticas ─────────────────────────────────────────
+                    // Stats
                     Row(
                       children: [
-                        _buildStatCard('Mis Clases', _totalMisClases.toString(),
-                            Icons.fitness_center, AppColors.primary),
+                        _stat('Mis Clases', _misClases, Icons.fitness_center, AppColors.primary),
                         const SizedBox(width: 12),
-                        _buildStatCard('Mis Alumnos',
-                            _totalMisAlumnos.toString(), Icons.people, Colors.green),
+                        _stat('Alumnos', _misAlumnos, Icons.people, Colors.green.shade600),
                       ],
                     ),
                     const SizedBox(height: 12),
                     Row(
                       children: [
-                        _buildStatCard('Clases Hoy', _clasesHoy.toString(),
-                            Icons.today, Colors.orange),
+                        _stat('Clases Hoy', _clasesHoy, Icons.today, Colors.orange.shade700),
                         const SizedBox(width: 12),
                         const Expanded(child: SizedBox()),
                       ],
                     ),
                     const SizedBox(height: 28),
 
-                    // ── Próximas clases ──────────────────────────────────────
                     const Text('Mis Próximas Clases',
-                        style: TextStyle(
-                            fontSize: 18, fontWeight: FontWeight.w700)),
+                        style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
                     const SizedBox(height: 12),
 
-                    if (_proximasClases.isEmpty)
+                    if (_proximas.isEmpty)
                       Container(
                         padding: const EdgeInsets.all(20),
                         decoration: BoxDecoration(
@@ -177,7 +233,7 @@ class _InstructorDashboardScreenState
                         ),
                       )
                     else
-                      ..._proximasClases.map((clase) => _buildClaseCard(clase)),
+                      ..._proximas.map((c) => _claseCard(c)),
                   ],
                 ),
               ),
@@ -185,8 +241,7 @@ class _InstructorDashboardScreenState
     );
   }
 
-  Widget _buildStatCard(
-      String label, String value, IconData icon, Color color) {
+  Widget _stat(String label, int value, IconData icon, Color color) {
     return Expanded(
       child: Container(
         padding: const EdgeInsets.all(16),
@@ -209,12 +264,10 @@ class _InstructorDashboardScreenState
             Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(value,
-                    style: const TextStyle(
-                        fontSize: 22, fontWeight: FontWeight.w700)),
+                Text(value.toString(),
+                    style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w700)),
                 Text(label,
-                    style: const TextStyle(
-                        fontSize: 12, color: AppColors.textSecondary)),
+                    style: const TextStyle(fontSize: 12, color: AppColors.textSecondary)),
               ],
             ),
           ],
@@ -223,20 +276,15 @@ class _InstructorDashboardScreenState
     );
   }
 
-  Widget _buildClaseCard(dynamic clase) {
-    final nombre = clase['nombre'] ?? '';
-    final fecha = clase['fecha']?.toString() ?? '';
-    final horaInicio = (clase['hora_inicio']?.toString() ?? '').length > 5
-        ? (clase['hora_inicio'].toString()).substring(0, 5)
-        : clase['hora_inicio']?.toString() ?? '';
-    final horaFin = (clase['hora_fin']?.toString() ?? '').length > 5
-        ? (clase['hora_fin'].toString()).substring(0, 5)
-        : clase['hora_fin']?.toString() ?? '';
-    final ubicacion = clase['ubicacion'] ?? 'Sin ubicación';
+  Widget _claseCard(dynamic c) {
+    String hi = c['hora_inicio']?.toString() ?? '';
+    String hf = c['hora_fin']?.toString() ?? '';
+    if (hi.length > 5) hi = hi.substring(0, 5);
+    if (hf.length > 5) hf = hf.substring(0, 5);
 
     return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.all(16),
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: AppColors.white,
         borderRadius: BorderRadius.circular(12),
@@ -245,29 +293,25 @@ class _InstructorDashboardScreenState
       child: Row(
         children: [
           Container(
-            padding: const EdgeInsets.all(10),
+            padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
               color: AppColors.primary.withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(10),
+              borderRadius: BorderRadius.circular(8),
             ),
-            child: const Icon(Icons.fitness_center,
-                color: AppColors.primary, size: 22),
+            child: const Icon(Icons.fitness_center, color: AppColors.primary, size: 20),
           ),
-          const SizedBox(width: 14),
+          const SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(nombre,
-                    style: const TextStyle(
-                        fontSize: 15, fontWeight: FontWeight.w600)),
-                const SizedBox(height: 4),
-                Text('$fecha  •  $horaInicio - $horaFin',
-                    style: const TextStyle(
-                        fontSize: 13, color: AppColors.textSecondary)),
-                Text(ubicacion,
-                    style: const TextStyle(
-                        fontSize: 12, color: AppColors.textTertiary)),
+                Text(c['nombre'] ?? '',
+                    style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
+                Text('${c['fecha']}  •  $hi - $hf',
+                    style: const TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+                if ((c['ubicacion'] ?? '').toString().isNotEmpty)
+                  Text(c['ubicacion'],
+                      style: const TextStyle(fontSize: 11, color: AppColors.textTertiary)),
               ],
             ),
           ),

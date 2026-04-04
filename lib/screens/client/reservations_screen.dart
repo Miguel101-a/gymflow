@@ -11,7 +11,8 @@ class ReservationsScreen extends StatefulWidget {
   State<ReservationsScreen> createState() => _ReservationsScreenState();
 }
 
-class _ReservationsScreenState extends State<ReservationsScreen> with SingleTickerProviderStateMixin {
+class _ReservationsScreenState extends State<ReservationsScreen>
+    with SingleTickerProviderStateMixin {
   late TabController _tabController;
   final _supabase = Supabase.instance.client;
   List<dynamic> _upcomingReservations = [];
@@ -26,9 +27,7 @@ class _ReservationsScreenState extends State<ReservationsScreen> with SingleTick
     RefreshNotifier.clientRefresh.addListener(_onRefresh);
   }
 
-  void _onRefresh() {
-    _fetchReservations();
-  }
+  void _onRefresh() => _fetchReservations();
 
   @override
   void dispose() {
@@ -43,7 +42,6 @@ class _ReservationsScreenState extends State<ReservationsScreen> with SingleTick
       if (mounted) setState(() => _isLoading = false);
       return;
     }
-
     try {
       final reservations = await _supabase
           .from('reservas')
@@ -54,24 +52,18 @@ class _ReservationsScreenState extends State<ReservationsScreen> with SingleTick
       final upcoming = <dynamic>[];
       final past = <dynamic>[];
 
-      // Sort reservations by class date and time
-      final sortedReservations = List<dynamic>.from(reservations);
-      sortedReservations.sort((a, b) {
-        final claseA = a['clase'] ?? {};
-        final claseB = b['clase'] ?? {};
-        final fechaA = claseA['fecha']?.toString() ?? '';
-        final horaA = claseA['hora_inicio']?.toString() ?? '';
-        final fechaB = claseB['fecha']?.toString() ?? '';
-        final horaB = claseB['hora_inicio']?.toString() ?? '';
-        
-        // Pad hours effectively to be parseable or compare lexicographically
-        final dtA = DateTime.tryParse('$fechaA $horaA') ?? DateTime.fromMillisecondsSinceEpoch(0);
-        final dtB = DateTime.tryParse('$fechaB $horaB') ?? DateTime.fromMillisecondsSinceEpoch(0);
-        
-        return dtA.compareTo(dtB); // Ascending for upcoming
-      });
+      final sorted = List<dynamic>.from(reservations)
+        ..sort((a, b) {
+          final ca = a['clase'] ?? {};
+          final cb = b['clase'] ?? {};
+          final dtA = DateTime.tryParse('${ca['fecha'] ?? ''} ${ca['hora_inicio'] ?? ''}') ??
+              DateTime.fromMillisecondsSinceEpoch(0);
+          final dtB = DateTime.tryParse('${cb['fecha'] ?? ''} ${cb['hora_inicio'] ?? ''}') ??
+              DateTime.fromMillisecondsSinceEpoch(0);
+          return dtA.compareTo(dtB);
+        });
 
-      for (final r in sortedReservations) {
+      for (final r in sorted) {
         final estado = r['estado'] ?? '';
         if (estado == 'confirmada' || estado == 'lista_de_espera') {
           upcoming.add(r);
@@ -79,19 +71,14 @@ class _ReservationsScreenState extends State<ReservationsScreen> with SingleTick
           past.add(r);
         }
       }
-      
-      // Past reservations should ideally be newest first (descending)
+
       past.sort((a, b) {
-        final claseA = a['clase'] ?? {};
-        final claseB = b['clase'] ?? {};
-        final fechaA = claseA['fecha']?.toString() ?? '';
-        final horaA = claseA['hora_inicio']?.toString() ?? '';
-        final fechaB = claseB['fecha']?.toString() ?? '';
-        final horaB = claseB['hora_inicio']?.toString() ?? '';
-        
-        final dtA = DateTime.tryParse('$fechaA $horaA') ?? DateTime.fromMillisecondsSinceEpoch(0);
-        final dtB = DateTime.tryParse('$fechaB $horaB') ?? DateTime.fromMillisecondsSinceEpoch(0);
-        
+        final ca = a['clase'] ?? {};
+        final cb = b['clase'] ?? {};
+        final dtA = DateTime.tryParse('${ca['fecha'] ?? ''} ${ca['hora_inicio'] ?? ''}') ??
+            DateTime.fromMillisecondsSinceEpoch(0);
+        final dtB = DateTime.tryParse('${cb['fecha'] ?? ''} ${cb['hora_inicio'] ?? ''}') ??
+            DateTime.fromMillisecondsSinceEpoch(0);
         return dtB.compareTo(dtA);
       });
 
@@ -107,6 +94,168 @@ class _ReservationsScreenState extends State<ReservationsScreen> with SingleTick
     }
   }
 
+  // ── Verificar si aún se puede cancelar (regla de 24 horas) ────────────────
+  bool _canCancel(dynamic reservation) {
+    final clase = reservation['clase'] ?? {};
+    final fechaStr = clase['fecha']?.toString();
+    final horaStr = clase['hora_inicio']?.toString();
+    if (fechaStr == null || horaStr == null) return true;
+
+    final claseDateTime = DateTime.tryParse('$fechaStr $horaStr');
+    if (claseDateTime == null) return true;
+
+    final now = DateTime.now();
+    final horasRestantes = claseDateTime.difference(now).inHours;
+    return horasRestantes >= 24; // puede cancelar si faltan 24h o más
+  }
+
+  // ── Diálogo de confirmación de cancelación ────────────────────────────────
+  Future<void> _confirmAndCancel(dynamic reservation) async {
+    final clase = reservation['clase'] ?? {};
+    final nombreClase = clase['nombre'] ?? 'esta clase';
+
+    // Verificar regla de 24 horas
+    if (!_canCancel(reservation)) {
+      showDialog(
+        context: context,
+        builder: (ctx) => Dialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 72, height: 72,
+                  decoration: BoxDecoration(
+                    color: AppColors.error.withValues(alpha: 0.1),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(Icons.block, color: AppColors.error, size: 40),
+                ),
+                const SizedBox(height: 16),
+                const Text('No es posible cancelar',
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
+                    textAlign: TextAlign.center),
+                const SizedBox(height: 10),
+                const Text(
+                  'Solo puedes cancelar tu reserva hasta 24 horas antes del inicio de la clase.',
+                  style: TextStyle(fontSize: 14, color: AppColors.textSecondary, height: 1.4),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 20),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: () => Navigator.pop(ctx),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.primary,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                    ),
+                    child: const Text('Entendido',
+                        style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700)),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+      return;
+    }
+
+    // Diálogo de confirmación
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => Dialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 72, height: 72,
+                decoration: BoxDecoration(
+                  color: Colors.orange.withValues(alpha: 0.1),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.help_outline, color: Colors.orange, size: 42),
+              ),
+              const SizedBox(height: 18),
+              const Text('¿Cancelar tu reserva?',
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
+                  textAlign: TextAlign.center),
+              const SizedBox(height: 10),
+              Text(
+                '¿Estás seguro de que deseas cancelar tu asistencia en "$nombreClase"?',
+                style: const TextStyle(fontSize: 14, color: AppColors.textSecondary, height: 1.4),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 8),
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: Colors.amber.shade50,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.amber.shade200),
+                ),
+                child: Row(
+                  children: [
+                    Icon(Icons.info_outline, color: Colors.amber.shade700, size: 16),
+                    const SizedBox(width: 6),
+                    const Expanded(
+                      child: Text(
+                        'Esta acción no se puede deshacer.',
+                        style: TextStyle(fontSize: 12),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 20),
+              // Botones
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: () => Navigator.pop(ctx, false),
+                      style: OutlinedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        side: const BorderSide(color: AppColors.border),
+                      ),
+                      child: const Text('No, mantener',
+                          style: TextStyle(fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: ElevatedButton(
+                      onPressed: () => Navigator.pop(ctx, true),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.error,
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      ),
+                      child: const Text('Sí, cancelar',
+                          style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700)),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+
+    if (confirmed == true) {
+      await _cancelReservation(reservation['id']);
+    }
+  }
+
   Future<void> _cancelReservation(String reservationId) async {
     try {
       await _supabase
@@ -118,7 +267,7 @@ class _ReservationsScreenState extends State<ReservationsScreen> with SingleTick
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Reserva cancelada'), backgroundColor: AppColors.success),
+          const SnackBar(content: Text('Reserva cancelada exitosamente'), backgroundColor: AppColors.success),
         );
         _fetchReservations();
       }
@@ -138,7 +287,6 @@ class _ReservationsScreenState extends State<ReservationsScreen> with SingleTick
       body: SafeArea(
         child: Column(
           children: [
-            // Header
             Container(
               color: AppColors.white,
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
@@ -159,7 +307,6 @@ class _ReservationsScreenState extends State<ReservationsScreen> with SingleTick
                 ],
               ),
             ),
-            // Tabs
             Container(
               color: AppColors.white,
               child: TabBar(
@@ -169,10 +316,7 @@ class _ReservationsScreenState extends State<ReservationsScreen> with SingleTick
                 indicatorColor: AppColors.primary,
                 indicatorWeight: 3,
                 labelStyle: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600, fontFamily: 'Inter'),
-                tabs: const [
-                  Tab(text: 'Próximas'),
-                  Tab(text: 'Pasadas'),
-                ],
+                tabs: const [Tab(text: 'Próximas'), Tab(text: 'Pasadas')],
               ),
             ),
             _isLoading
@@ -181,8 +325,8 @@ class _ReservationsScreenState extends State<ReservationsScreen> with SingleTick
                     child: TabBarView(
                       controller: _tabController,
                       children: [
-                        _buildReservationList(_upcomingReservations, isUpcoming: true),
-                        _buildReservationList(_pastReservations, isUpcoming: false),
+                        _buildList(_upcomingReservations, isUpcoming: true),
+                        _buildList(_pastReservations, isUpcoming: false),
                       ],
                     ),
                   ),
@@ -192,13 +336,14 @@ class _ReservationsScreenState extends State<ReservationsScreen> with SingleTick
     );
   }
 
-  Widget _buildReservationList(List<dynamic> reservations, {required bool isUpcoming}) {
+  Widget _buildList(List<dynamic> reservations, {required bool isUpcoming}) {
     if (reservations.isEmpty) {
       return Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(isUpcoming ? Icons.calendar_today_outlined : Icons.history, size: 48, color: AppColors.textTertiary),
+            Icon(isUpcoming ? Icons.calendar_today_outlined : Icons.history,
+                size: 48, color: AppColors.textTertiary),
             const SizedBox(height: 16),
             Text(
               isUpcoming ? 'No tienes reservas próximas' : 'No hay reservas pasadas',
@@ -218,10 +363,11 @@ class _ReservationsScreenState extends State<ReservationsScreen> with SingleTick
         final nombre = clase['nombre'] ?? 'Clase';
         final instructor = clase['instructor']?['nombre_completo'] ?? 'Instructor';
         final fecha = clase['fecha']?.toString() ?? '';
-        final horaInicio = clase['hora_inicio']?.toString() ?? '';
+        String horaInicio = clase['hora_inicio']?.toString() ?? '';
+        if (horaInicio.length > 5) horaInicio = horaInicio.substring(0, 5);
         final ubicacion = clase['ubicacion'] ?? 'Por definir';
-        final estado = (reservation['estado'] ?? '').toString().toUpperCase();
-        
+        final canCancel = isUpcoming && _canCancel(reservation);
+
         Color statusColor;
         String statusLabel;
         switch (reservation['estado']) {
@@ -243,30 +389,27 @@ class _ReservationsScreenState extends State<ReservationsScreen> with SingleTick
             break;
           default:
             statusColor = AppColors.textSecondary;
-            statusLabel = estado;
+            statusLabel = reservation['estado']?.toString().toUpperCase() ?? '';
         }
 
         return Padding(
           padding: const EdgeInsets.only(bottom: 16),
-          child: _buildReservationCard(
-            context,
-            reservation,
-            nombre,
-            '$fecha • $horaInicio',
-            ubicacion,
-            instructor,
-            statusLabel,
-            statusColor,
+          child: _buildCard(
+            context, reservation, clase,
+            nombre, '$fecha • $horaInicio', ubicacion, instructor,
+            statusLabel, statusColor,
             isUpcoming: isUpcoming,
+            canCancel: canCancel,
           ),
         );
       },
     );
   }
 
-  Widget _buildReservationCard(
+  Widget _buildCard(
     BuildContext context,
     dynamic reservation,
+    dynamic clase,
     String title,
     String dateTime,
     String location,
@@ -274,9 +417,8 @@ class _ReservationsScreenState extends State<ReservationsScreen> with SingleTick
     String status,
     Color statusColor, {
     required bool isUpcoming,
+    required bool canCancel,
   }) {
-    final clase = reservation['clase'] ?? {};
-
     return Container(
       decoration: BoxDecoration(
         color: AppColors.white,
@@ -286,7 +428,7 @@ class _ReservationsScreenState extends State<ReservationsScreen> with SingleTick
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Image placeholder
+          // Imagen de la clase o placeholder
           Container(
             height: 140,
             width: double.infinity,
@@ -294,7 +436,14 @@ class _ReservationsScreenState extends State<ReservationsScreen> with SingleTick
               color: AppColors.chipBackground,
               borderRadius: BorderRadius.vertical(top: Radius.circular(12)),
             ),
-            child: const Center(child: Icon(Icons.self_improvement, size: 48, color: AppColors.primary)),
+            child: clase['imagen_url'] != null
+                ? ClipRRect(
+                    borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
+                    child: Image.network(clase['imagen_url'], fit: BoxFit.cover,
+                        errorBuilder: (_, __, ___) => const Center(
+                          child: Icon(Icons.fitness_center, size: 48, color: AppColors.primary))),
+                  )
+                : const Center(child: Icon(Icons.fitness_center, size: 48, color: AppColors.primary)),
           ),
           Padding(
             padding: const EdgeInsets.all(16),
@@ -304,50 +453,54 @@ class _ReservationsScreenState extends State<ReservationsScreen> with SingleTick
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Expanded(child: Text(title, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700))),
+                    Expanded(child: Text(title, style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w700))),
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                       decoration: BoxDecoration(
                         color: statusColor.withValues(alpha: 0.1),
                         borderRadius: BorderRadius.circular(6),
                       ),
-                      child: Text(status,
-                          style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: statusColor)),
+                      child: Text(status, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: statusColor)),
                     ),
                   ],
                 ),
                 const SizedBox(height: 8),
-                Row(children: [
-                  const Icon(Icons.calendar_today, size: 14, color: AppColors.textSecondary),
-                  const SizedBox(width: 6),
-                  Text(dateTime, style: const TextStyle(fontSize: 13, color: AppColors.textSecondary)),
-                ]),
+                _infoRow(Icons.calendar_today, dateTime),
                 const SizedBox(height: 4),
-                Row(children: [
-                  const Icon(Icons.location_on_outlined, size: 14, color: AppColors.textSecondary),
-                  const SizedBox(width: 6),
-                  Text(location, style: const TextStyle(fontSize: 13, color: AppColors.textSecondary)),
-                ]),
+                _infoRow(Icons.location_on_outlined, location),
                 const SizedBox(height: 4),
-                Row(children: [
-                  const Icon(Icons.person_outline, size: 14, color: AppColors.textSecondary),
-                  const SizedBox(width: 6),
-                  Text('Instructor: $instructor', style: const TextStyle(fontSize: 13, color: AppColors.textSecondary)),
-                ]),
-                const SizedBox(height: 16),
+                _infoRow(Icons.person_outline, 'Instructor: $instructor'),
+                // Aviso si ya no se puede cancelar
+                if (isUpcoming && !canCancel) ...[
+                  const SizedBox(height: 10),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+                    decoration: BoxDecoration(
+                      color: AppColors.error.withValues(alpha: 0.07),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: AppColors.error.withValues(alpha: 0.2)),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(Icons.lock_clock, size: 14, color: AppColors.error.withValues(alpha: 0.8)),
+                        const SizedBox(width: 6),
+                        const Expanded(
+                          child: Text(
+                            'Ya no es posible cancelar (menos de 24h para la clase)',
+                            style: TextStyle(fontSize: 11, color: AppColors.error),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+                const SizedBox(height: 14),
                 Row(
                   children: [
                     Expanded(
                       child: ElevatedButton(
-                        onPressed: () => Navigator.pushNamed(
-                          context,
-                          '/classDetail',
-                          arguments: clase,
-                        ),
-                        style: ElevatedButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(vertical: 12),
-                          minimumSize: Size.zero,
-                        ),
+                        onPressed: () => Navigator.pushNamed(context, '/classDetail', arguments: clase),
+                        style: ElevatedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 12), minimumSize: Size.zero),
                         child: const Text('Ver Detalles', style: TextStyle(fontSize: 14)),
                       ),
                     ),
@@ -355,12 +508,23 @@ class _ReservationsScreenState extends State<ReservationsScreen> with SingleTick
                       const SizedBox(width: 12),
                       Expanded(
                         child: OutlinedButton(
-                          onPressed: () => _cancelReservation(reservation['id']),
+                          // Si no puede cancelar, el botón llama igual pero el método mostrará el mensaje de error
+                          onPressed: () => _confirmAndCancel(reservation),
                           style: OutlinedButton.styleFrom(
                             padding: const EdgeInsets.symmetric(vertical: 12),
                             minimumSize: Size.zero,
+                            side: BorderSide(
+                              color: canCancel ? AppColors.error.withValues(alpha: 0.5) : AppColors.border,
+                            ),
                           ),
-                          child: const Text('Cancelar', style: TextStyle(fontSize: 14)),
+                          child: Text(
+                            'Cancelar',
+                            style: TextStyle(
+                              fontSize: 14,
+                              color: canCancel ? AppColors.error : AppColors.textTertiary,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
                         ),
                       ),
                     ],
@@ -373,4 +537,12 @@ class _ReservationsScreenState extends State<ReservationsScreen> with SingleTick
       ),
     );
   }
+
+  Widget _infoRow(IconData icon, String text) => Row(
+    children: [
+      Icon(icon, size: 14, color: AppColors.textSecondary),
+      const SizedBox(width: 6),
+      Expanded(child: Text(text, style: const TextStyle(fontSize: 13, color: AppColors.textSecondary))),
+    ],
+  );
 }

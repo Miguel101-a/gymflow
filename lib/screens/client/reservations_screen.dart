@@ -56,9 +56,11 @@ class _ReservationsScreenState extends State<ReservationsScreen>
         ..sort((a, b) {
           final ca = a['clase'] ?? {};
           final cb = b['clase'] ?? {};
-          final dtA = DateTime.tryParse('${ca['fecha'] ?? ''} ${ca['hora_inicio'] ?? ''}') ??
+          final dtA = DateTime.tryParse(
+                  '${ca['fecha'] ?? ''} ${ca['hora_inicio'] ?? ''}') ??
               DateTime.fromMillisecondsSinceEpoch(0);
-          final dtB = DateTime.tryParse('${cb['fecha'] ?? ''} ${cb['hora_inicio'] ?? ''}') ??
+          final dtB = DateTime.tryParse(
+                  '${cb['fecha'] ?? ''} ${cb['hora_inicio'] ?? ''}') ??
               DateTime.fromMillisecondsSinceEpoch(0);
           return dtA.compareTo(dtB);
         });
@@ -75,9 +77,11 @@ class _ReservationsScreenState extends State<ReservationsScreen>
       past.sort((a, b) {
         final ca = a['clase'] ?? {};
         final cb = b['clase'] ?? {};
-        final dtA = DateTime.tryParse('${ca['fecha'] ?? ''} ${ca['hora_inicio'] ?? ''}') ??
+        final dtA = DateTime.tryParse(
+                '${ca['fecha'] ?? ''} ${ca['hora_inicio'] ?? ''}') ??
             DateTime.fromMillisecondsSinceEpoch(0);
-        final dtB = DateTime.tryParse('${cb['fecha'] ?? ''} ${cb['hora_inicio'] ?? ''}') ??
+        final dtB = DateTime.tryParse(
+                '${cb['fecha'] ?? ''} ${cb['hora_inicio'] ?? ''}') ??
             DateTime.fromMillisecondsSinceEpoch(0);
         return dtB.compareTo(dtA);
       });
@@ -94,7 +98,7 @@ class _ReservationsScreenState extends State<ReservationsScreen>
     }
   }
 
-  // ── Verificar si aún se puede cancelar (regla de 24 horas) ────────────────
+  // ── Verificar si aún se puede cancelar (regla de 12 horas) ───────────────
   bool _canCancel(dynamic reservation) {
     final clase = reservation['clase'] ?? {};
     final fechaStr = clase['fecha']?.toString();
@@ -104,9 +108,8 @@ class _ReservationsScreenState extends State<ReservationsScreen>
     final claseDateTime = DateTime.tryParse('$fechaStr $horaStr');
     if (claseDateTime == null) return true;
 
-    final now = DateTime.now();
-    final horasRestantes = claseDateTime.difference(now).inHours;
-    return horasRestantes >= 24; // puede cancelar si faltan 24h o más
+    final horasRestantes = claseDateTime.difference(DateTime.now()).inHours;
+    return horasRestantes >= 12; // puede cancelar si faltan 12h o más
   }
 
   // ── Diálogo de confirmación de cancelación ────────────────────────────────
@@ -114,12 +117,13 @@ class _ReservationsScreenState extends State<ReservationsScreen>
     final clase = reservation['clase'] ?? {};
     final nombreClase = clase['nombre'] ?? 'esta clase';
 
-    // Verificar regla de 24 horas
+    // Bloqueo por regla de 12 horas
     if (!_canCancel(reservation)) {
       showDialog(
         context: context,
         builder: (ctx) => Dialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
           child: Padding(
             padding: const EdgeInsets.all(24),
             child: Column(
@@ -135,12 +139,16 @@ class _ReservationsScreenState extends State<ReservationsScreen>
                 ),
                 const SizedBox(height: 16),
                 const Text('No es posible cancelar',
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
+                    style:
+                        TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
                     textAlign: TextAlign.center),
                 const SizedBox(height: 10),
                 const Text(
-                  'Solo puedes cancelar tu reserva hasta 24 horas antes del inicio de la clase.',
-                  style: TextStyle(fontSize: 14, color: AppColors.textSecondary, height: 1.4),
+                  'Solo puedes cancelar tu reserva hasta 12 horas antes del inicio de la clase.',
+                  style: TextStyle(
+                      fontSize: 14,
+                      color: AppColors.textSecondary,
+                      height: 1.4),
                   textAlign: TextAlign.center,
                 ),
                 const SizedBox(height: 20),
@@ -150,11 +158,14 @@ class _ReservationsScreenState extends State<ReservationsScreen>
                     onPressed: () => Navigator.pop(ctx),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: AppColors.primary,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12)),
                       padding: const EdgeInsets.symmetric(vertical: 14),
                     ),
                     child: const Text('Entendido',
-                        style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700)),
+                        style: TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w700)),
                   ),
                 ),
               ],
@@ -169,7 +180,8 @@ class _ReservationsScreenState extends State<ReservationsScreen>
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => Dialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        shape:
+            RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         child: Padding(
           padding: const EdgeInsets.all(24),
           child: Column(
@@ -181,16 +193,21 @@ class _ReservationsScreenState extends State<ReservationsScreen>
                   color: Colors.orange.withValues(alpha: 0.1),
                   shape: BoxShape.circle,
                 ),
-                child: const Icon(Icons.help_outline, color: Colors.orange, size: 42),
+                child: const Icon(Icons.help_outline,
+                    color: Colors.orange, size: 42),
               ),
               const SizedBox(height: 18),
               const Text('¿Cancelar tu reserva?',
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
+                  style:
+                      TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
                   textAlign: TextAlign.center),
               const SizedBox(height: 10),
               Text(
                 '¿Estás seguro de que deseas cancelar tu asistencia en "$nombreClase"?',
-                style: const TextStyle(fontSize: 14, color: AppColors.textSecondary, height: 1.4),
+                style: const TextStyle(
+                    fontSize: 14,
+                    color: AppColors.textSecondary,
+                    height: 1.4),
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: 8),
@@ -203,31 +220,33 @@ class _ReservationsScreenState extends State<ReservationsScreen>
                 ),
                 child: Row(
                   children: [
-                    Icon(Icons.info_outline, color: Colors.amber.shade700, size: 16),
+                    Icon(Icons.info_outline,
+                        color: Colors.amber.shade700, size: 16),
                     const SizedBox(width: 6),
                     const Expanded(
-                      child: Text(
-                        'Esta acción no se puede deshacer.',
-                        style: TextStyle(fontSize: 12),
-                      ),
+                      child: Text('Esta acción no se puede deshacer.',
+                          style: TextStyle(fontSize: 12)),
                     ),
                   ],
                 ),
               ),
               const SizedBox(height: 20),
-              // Botones
               Row(
                 children: [
                   Expanded(
                     child: OutlinedButton(
                       onPressed: () => Navigator.pop(ctx, false),
                       style: OutlinedButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        padding:
+                            const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12)),
                         side: const BorderSide(color: AppColors.border),
                       ),
                       child: const Text('No, mantener',
-                          style: TextStyle(fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
+                          style: TextStyle(
+                              fontWeight: FontWeight.w600,
+                              color: AppColors.textPrimary)),
                     ),
                   ),
                   const SizedBox(width: 12),
@@ -236,11 +255,15 @@ class _ReservationsScreenState extends State<ReservationsScreen>
                       onPressed: () => Navigator.pop(ctx, true),
                       style: ElevatedButton.styleFrom(
                         backgroundColor: AppColors.error,
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        padding:
+                            const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12)),
                       ),
                       child: const Text('Sí, cancelar',
-                          style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700)),
+                          style: TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.w700)),
                     ),
                   ),
                 ],
@@ -260,21 +283,28 @@ class _ReservationsScreenState extends State<ReservationsScreen>
     try {
       await _supabase
           .from('reservas')
-          .update({'estado': 'cancelada', 'updated_at': DateTime.now().toIso8601String()})
+          .update({
+            'estado': 'cancelada',
+            'updated_at': DateTime.now().toIso8601String()
+          })
           .eq('id', reservationId);
 
       RefreshNotifier.notifyClient();
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Reserva cancelada exitosamente'), backgroundColor: AppColors.success),
+          const SnackBar(
+              content: Text('Reserva cancelada exitosamente'),
+              backgroundColor: AppColors.success),
         );
         _fetchReservations();
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error al cancelar: $e'), backgroundColor: AppColors.error),
+          SnackBar(
+              content: Text('Error al cancelar: $e'),
+              backgroundColor: AppColors.error),
         );
       }
     }
@@ -289,19 +319,23 @@ class _ReservationsScreenState extends State<ReservationsScreen>
           children: [
             Container(
               color: AppColors.white,
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
               child: Row(
                 children: [
                   GestureDetector(
                     onTap: () {
-                      final shellState = context.findAncestorStateOfType<ClientShellState>();
+                      final shellState =
+                          context.findAncestorStateOfType<ClientShellState>();
                       if (shellState != null) shellState.openDrawer();
                     },
                     child: const Icon(Icons.menu, size: 24),
                   ),
                   const Expanded(
-                    child: Text('Mis Reservas', textAlign: TextAlign.center,
-                        style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
+                    child: Text('Mis Reservas',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                            fontSize: 18, fontWeight: FontWeight.w700)),
                   ),
                   const SizedBox(width: 24),
                 ],
@@ -315,12 +349,19 @@ class _ReservationsScreenState extends State<ReservationsScreen>
                 unselectedLabelColor: AppColors.textSecondary,
                 indicatorColor: AppColors.primary,
                 indicatorWeight: 3,
-                labelStyle: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600, fontFamily: 'Inter'),
-                tabs: const [Tab(text: 'Próximas'), Tab(text: 'Pasadas')],
+                labelStyle: const TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w600,
+                    fontFamily: 'Inter'),
+                tabs: const [
+                  Tab(text: 'Próximas'),
+                  Tab(text: 'Pasadas'),
+                ],
               ),
             ),
             _isLoading
-                ? const Expanded(child: Center(child: CircularProgressIndicator()))
+                ? const Expanded(
+                    child: Center(child: CircularProgressIndicator()))
                 : Expanded(
                     child: TabBarView(
                       controller: _tabController,
@@ -342,12 +383,19 @@ class _ReservationsScreenState extends State<ReservationsScreen>
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(isUpcoming ? Icons.calendar_today_outlined : Icons.history,
-                size: 48, color: AppColors.textTertiary),
+            Icon(
+                isUpcoming
+                    ? Icons.calendar_today_outlined
+                    : Icons.history,
+                size: 48,
+                color: AppColors.textTertiary),
             const SizedBox(height: 16),
             Text(
-              isUpcoming ? 'No tienes reservas próximas' : 'No hay reservas pasadas',
-              style: const TextStyle(color: AppColors.textSecondary, fontSize: 16),
+              isUpcoming
+                  ? 'No tienes reservas próximas'
+                  : 'No hay reservas pasadas',
+              style: const TextStyle(
+                  color: AppColors.textSecondary, fontSize: 16),
             ),
           ],
         ),
@@ -361,7 +409,8 @@ class _ReservationsScreenState extends State<ReservationsScreen>
         final reservation = reservations[index];
         final clase = reservation['clase'] ?? {};
         final nombre = clase['nombre'] ?? 'Clase';
-        final instructor = clase['instructor']?['nombre_completo'] ?? 'Instructor';
+        final instructor =
+            clase['instructor']?['nombre_completo'] ?? 'Instructor';
         final fecha = clase['fecha']?.toString() ?? '';
         String horaInicio = clase['hora_inicio']?.toString() ?? '';
         if (horaInicio.length > 5) horaInicio = horaInicio.substring(0, 5);
@@ -389,7 +438,8 @@ class _ReservationsScreenState extends State<ReservationsScreen>
             break;
           default:
             statusColor = AppColors.textSecondary;
-            statusLabel = reservation['estado']?.toString().toUpperCase() ?? '';
+            statusLabel =
+                reservation['estado']?.toString().toUpperCase() ?? '';
         }
 
         return Padding(
@@ -428,22 +478,28 @@ class _ReservationsScreenState extends State<ReservationsScreen>
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Imagen de la clase o placeholder
+          // Imagen de la clase
           Container(
-            height: 140,
-            width: double.infinity,
+            height: 140, width: double.infinity,
             decoration: const BoxDecoration(
               color: AppColors.chipBackground,
-              borderRadius: BorderRadius.vertical(top: Radius.circular(12)),
+              borderRadius:
+                  BorderRadius.vertical(top: Radius.circular(12)),
             ),
-            child: clase['imagen_url'] != null
+            child: clase['imagen_url'] != null &&
+                    clase['imagen_url'].toString().isNotEmpty
                 ? ClipRRect(
-                    borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
-                    child: Image.network(clase['imagen_url'], fit: BoxFit.cover,
+                    borderRadius: const BorderRadius.vertical(
+                        top: Radius.circular(12)),
+                    child: Image.network(clase['imagen_url'],
+                        fit: BoxFit.cover,
                         errorBuilder: (_, __, ___) => const Center(
-                          child: Icon(Icons.fitness_center, size: 48, color: AppColors.primary))),
+                            child: Icon(Icons.fitness_center,
+                                size: 48, color: AppColors.primary))),
                   )
-                : const Center(child: Icon(Icons.fitness_center, size: 48, color: AppColors.primary)),
+                : const Center(
+                    child: Icon(Icons.fitness_center,
+                        size: 48, color: AppColors.primary)),
           ),
           Padding(
             padding: const EdgeInsets.all(16),
@@ -453,14 +509,23 @@ class _ReservationsScreenState extends State<ReservationsScreen>
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Expanded(child: Text(title, style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w700))),
+                    Expanded(
+                        child: Text(title,
+                            style: const TextStyle(
+                                fontSize: 17,
+                                fontWeight: FontWeight.w700))),
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 10, vertical: 4),
                       decoration: BoxDecoration(
                         color: statusColor.withValues(alpha: 0.1),
                         borderRadius: BorderRadius.circular(6),
                       ),
-                      child: Text(status, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: statusColor)),
+                      child: Text(status,
+                          style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w700,
+                              color: statusColor)),
                     ),
                   ],
                 ),
@@ -469,25 +534,33 @@ class _ReservationsScreenState extends State<ReservationsScreen>
                 const SizedBox(height: 4),
                 _infoRow(Icons.location_on_outlined, location),
                 const SizedBox(height: 4),
-                _infoRow(Icons.person_outline, 'Instructor: $instructor'),
+                _infoRow(
+                    Icons.person_outline, 'Instructor: $instructor'),
                 // Aviso si ya no se puede cancelar
                 if (isUpcoming && !canCancel) ...[
                   const SizedBox(height: 10),
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 10, vertical: 7),
                     decoration: BoxDecoration(
                       color: AppColors.error.withValues(alpha: 0.07),
                       borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: AppColors.error.withValues(alpha: 0.2)),
+                      border: Border.all(
+                          color:
+                              AppColors.error.withValues(alpha: 0.2)),
                     ),
                     child: Row(
                       children: [
-                        Icon(Icons.lock_clock, size: 14, color: AppColors.error.withValues(alpha: 0.8)),
+                        Icon(Icons.lock_clock,
+                            size: 14,
+                            color:
+                                AppColors.error.withValues(alpha: 0.8)),
                         const SizedBox(width: 6),
                         const Expanded(
                           child: Text(
-                            'Ya no es posible cancelar (menos de 24h para la clase)',
-                            style: TextStyle(fontSize: 11, color: AppColors.error),
+                            'Ya no es posible cancelar (menos de 12h para la clase)',
+                            style: TextStyle(
+                                fontSize: 11, color: AppColors.error),
                           ),
                         ),
                       ],
@@ -499,29 +572,42 @@ class _ReservationsScreenState extends State<ReservationsScreen>
                   children: [
                     Expanded(
                       child: ElevatedButton(
-                        onPressed: () => Navigator.pushNamed(context, '/classDetail', arguments: clase),
-                        style: ElevatedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 12), minimumSize: Size.zero),
-                        child: const Text('Ver Detalles', style: TextStyle(fontSize: 14)),
+                        onPressed: () => Navigator.pushNamed(
+                            context, '/classDetail',
+                            arguments: clase),
+                        style: ElevatedButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(
+                              vertical: 12),
+                          minimumSize: Size.zero,
+                        ),
+                        child: const Text('Ver Detalles',
+                            style: TextStyle(fontSize: 14)),
                       ),
                     ),
                     if (isUpcoming) ...[
                       const SizedBox(width: 12),
                       Expanded(
                         child: OutlinedButton(
-                          // Si no puede cancelar, el botón llama igual pero el método mostrará el mensaje de error
-                          onPressed: () => _confirmAndCancel(reservation),
+                          onPressed: () =>
+                              _confirmAndCancel(reservation),
                           style: OutlinedButton.styleFrom(
-                            padding: const EdgeInsets.symmetric(vertical: 12),
+                            padding: const EdgeInsets.symmetric(
+                                vertical: 12),
                             minimumSize: Size.zero,
                             side: BorderSide(
-                              color: canCancel ? AppColors.error.withValues(alpha: 0.5) : AppColors.border,
+                              color: canCancel
+                                  ? AppColors.error
+                                      .withValues(alpha: 0.5)
+                                  : AppColors.border,
                             ),
                           ),
                           child: Text(
                             'Cancelar',
                             style: TextStyle(
                               fontSize: 14,
-                              color: canCancel ? AppColors.error : AppColors.textTertiary,
+                              color: canCancel
+                                  ? AppColors.error
+                                  : AppColors.textTertiary,
                               fontWeight: FontWeight.w600,
                             ),
                           ),
@@ -542,7 +628,10 @@ class _ReservationsScreenState extends State<ReservationsScreen>
     children: [
       Icon(icon, size: 14, color: AppColors.textSecondary),
       const SizedBox(width: 6),
-      Expanded(child: Text(text, style: const TextStyle(fontSize: 13, color: AppColors.textSecondary))),
+      Expanded(
+          child: Text(text,
+              style: const TextStyle(
+                  fontSize: 13, color: AppColors.textSecondary))),
     ],
   );
 }

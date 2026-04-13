@@ -188,7 +188,7 @@ class _ClassDetailScreenState extends State<ClassDetailScreen> {
               ),
               const SizedBox(height: 14),
 
-              // Aviso de regla de 24 horas
+              // Aviso de regla de 12 horas
               Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
@@ -203,7 +203,7 @@ class _ClassDetailScreenState extends State<ClassDetailScreen> {
                     const SizedBox(width: 8),
                     const Expanded(
                       child: Text(
-                        'Recuerda que tienes hasta 24 horas antes de la clase para cancelar tu reserva.',
+                        'Recuerda que tienes hasta 12 horas antes de la clase para cancelar tu reserva.',
                         style: TextStyle(fontSize: 12, height: 1.4),
                       ),
                     ),

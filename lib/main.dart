@@ -10,6 +10,9 @@ import 'screens/client/class_detail_screen.dart';
 import 'screens/client/edit_profile_screen.dart';
 import 'screens/client/profile_screen.dart';
 import 'screens/client/notifications_screen.dart';
+import 'screens/client/notifications_settings_screen.dart';
+import 'screens/client/privacy_security_screen.dart';
+import 'screens/shared/support_center_screen.dart';
 import 'screens/admin/admin_shell.dart';
 import 'screens/admin/manage_class_screen.dart';
 import 'screens/admin/student_management_screen.dart';
@@ -161,6 +164,9 @@ class _GymFlowAppState extends State<GymFlowApp> {
         '/editProfile': (context) => const EditProfileScreen(),
         '/profile': (context) => const ProfileScreen(),
         '/notifications': (context) => const NotificationsScreen(),
+        '/client/notifications-settings': (context) => const NotificationsSettingsScreen(),
+        '/client/privacy-security': (context) => const PrivacySecurityScreen(),
+        '/support': (context) => const SupportCenterScreen(),
 
         // ── Admin ──────────────────────────────────────────────
         '/admin': (context) => const RoleGuard(

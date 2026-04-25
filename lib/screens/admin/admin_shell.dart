@@ -6,6 +6,7 @@ import 'student_management_screen.dart';
 import 'manage_class_screen.dart';
 import 'calendar_screen.dart';
 import 'communications_screen.dart';
+import 'admin_profile_screen.dart';
 
 
 class AdminShell extends StatefulWidget {
@@ -24,6 +25,7 @@ class _AdminShellState extends State<AdminShell> {
     ManageClassScreen(),
     CalendarScreen(),
     CommunicationsScreen(),
+    AdminProfileScreen(),
   ];
 
   @override
@@ -51,8 +53,8 @@ class _AdminShellState extends State<AdminShell> {
           backgroundColor: AppColors.white,
           selectedItemColor: AppColors.primary,
           unselectedItemColor: AppColors.textTertiary,
-          selectedFontSize: 11,
-          unselectedFontSize: 11,
+          selectedFontSize: 10,
+          unselectedFontSize: 10,
           selectedLabelStyle: const TextStyle(fontWeight: FontWeight.w600, fontFamily: 'Inter'),
           unselectedLabelStyle: const TextStyle(fontWeight: FontWeight.w500, fontFamily: 'Inter'),
           items: const [
@@ -80,6 +82,11 @@ class _AdminShellState extends State<AdminShell> {
               icon: Icon(Icons.mail_outline),
               activeIcon: Icon(Icons.mail),
               label: 'MENSAJES',
+            ),
+            BottomNavigationBarItem(
+              icon: Icon(Icons.person_outline),
+              activeIcon: Icon(Icons.person),
+              label: 'PERFIL',
             ),
           ],
         ),

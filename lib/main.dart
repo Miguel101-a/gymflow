@@ -18,7 +18,14 @@ import 'screens/admin/manage_class_screen.dart';
 import 'screens/admin/student_management_screen.dart';
 import 'screens/admin/communications_screen.dart';
 import 'screens/admin/class_form_screen.dart';
-import 'screens/instructor/instructor_shell.dart';  // ← nuevo
+import 'screens/admin/admin_profile_screen.dart';
+import 'screens/admin/edit_admin_profile_screen.dart';
+import 'screens/admin/business_rules_screen.dart';
+import 'screens/admin/role_management_screen.dart';
+import 'screens/admin/general_config_screen.dart';
+import 'screens/instructor/instructor_shell.dart';
+import 'screens/instructor/instructor_profile_screen.dart';
+import 'screens/instructor/edit_instructor_profile_screen.dart';
 
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
@@ -181,11 +188,39 @@ class _GymFlowAppState extends State<GymFlowApp> {
               as Map<String, dynamic>?;
           return ClassFormScreen(classData: args);
         },
+        '/admin/profile': (context) => const RoleGuard(
+              requiredRoles: ['admin'],
+              child: AdminProfileScreen(),
+            ),
+        '/admin/edit-profile': (context) => const RoleGuard(
+              requiredRoles: ['admin'],
+              child: EditAdminProfileScreen(),
+            ),
+        '/admin/business-rules': (context) => const RoleGuard(
+              requiredRoles: ['admin'],
+              child: BusinessRulesScreen(),
+            ),
+        '/admin/roles': (context) => const RoleGuard(
+              requiredRoles: ['admin'],
+              child: RoleManagementScreen(),
+            ),
+        '/admin/general-config': (context) => const RoleGuard(
+              requiredRoles: ['admin'],
+              child: GeneralConfigScreen(),
+            ),
 
         // ── Instructor ─────────────────────────────────────────
         '/instructor': (context) => const RoleGuard(
               requiredRoles: ['instructor', 'admin'],
               child: InstructorShell(),
+            ),
+        '/instructor/profile': (context) => const RoleGuard(
+              requiredRoles: ['instructor', 'admin'],
+              child: InstructorProfileScreen(),
+            ),
+        '/instructor/edit-profile': (context) => const RoleGuard(
+              requiredRoles: ['instructor', 'admin'],
+              child: EditInstructorProfileScreen(),
             ),
       },
     );

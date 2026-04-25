@@ -3,6 +3,7 @@ import '../../theme/app_colors.dart';
 import 'instructor_dashboard_screen.dart';
 import 'instructor_classes_screen.dart';
 import 'instructor_students_screen.dart';
+import 'instructor_profile_screen.dart';
 import '../admin/calendar_screen.dart';
 import '../admin/communications_screen.dart';
 
@@ -22,6 +23,7 @@ class _InstructorShellState extends State<InstructorShell> {
     InstructorStudentsScreen(),
     CalendarScreen(),
     CommunicationsScreen(),
+    InstructorProfileScreen(),
   ];
 
   @override
@@ -49,8 +51,8 @@ class _InstructorShellState extends State<InstructorShell> {
           backgroundColor: AppColors.white,
           selectedItemColor: AppColors.primary,
           unselectedItemColor: AppColors.textTertiary,
-          selectedFontSize: 11,
-          unselectedFontSize: 11,
+          selectedFontSize: 10,
+          unselectedFontSize: 10,
           selectedLabelStyle:
               const TextStyle(fontWeight: FontWeight.w600, fontFamily: 'Inter'),
           unselectedLabelStyle:
@@ -64,7 +66,7 @@ class _InstructorShellState extends State<InstructorShell> {
             BottomNavigationBarItem(
               icon: Icon(Icons.fitness_center_outlined),
               activeIcon: Icon(Icons.fitness_center),
-              label: 'MIS CLASES',
+              label: 'CLASES',
             ),
             BottomNavigationBarItem(
               icon: Icon(Icons.people_outline),
@@ -80,6 +82,11 @@ class _InstructorShellState extends State<InstructorShell> {
               icon: Icon(Icons.mail_outline),
               activeIcon: Icon(Icons.mail),
               label: 'MENSAJES',
+            ),
+            BottomNavigationBarItem(
+              icon: Icon(Icons.person_outline),
+              activeIcon: Icon(Icons.person),
+              label: 'PERFIL',
             ),
           ],
         ),

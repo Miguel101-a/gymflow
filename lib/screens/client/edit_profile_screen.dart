@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../theme/app_colors.dart';
+import '../../utils/refresh_notifier.dart';
+import '../../widgets/avatar_picker.dart';
 import '../../widgets/custom_text_field.dart';
 import '../../widgets/primary_button.dart';
 
@@ -19,6 +21,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   late TextEditingController _nameController;
   late TextEditingController _emailController;
   late TextEditingController _phoneController;
+  String? _avatarUrl;
 
   @override
   void initState() {
@@ -56,6 +59,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
           _nameController.text = profile['nombre_completo'] ?? '';
           _emailController.text = user.email ?? '';
           _phoneController.text = profile['telefono'] ?? '';
+          _avatarUrl = profile['avatar_url'];
           _isLoading = false;
         });
       }
@@ -138,27 +142,12 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
               ),
               const Divider(height: 1, color: AppColors.border),
               const SizedBox(height: 24),
-              // Avatar
-              Stack(
-                children: [
-                  const CircleAvatar(
-                    radius: 56,
-                    backgroundColor: AppColors.chipBackground,
-                    child: Icon(Icons.person, size: 56, color: AppColors.primary),
-                  ),
-                  Positioned(
-                    bottom: 0,
-                    right: 0,
-                    child: Container(
-                      padding: const EdgeInsets.all(8),
-                      decoration: const BoxDecoration(
-                        color: AppColors.primary,
-                        shape: BoxShape.circle,
-                      ),
-                      child: const Icon(Icons.camera_alt, color: AppColors.white, size: 18),
-                    ),
-                  ),
-                ],
+              AvatarPicker(
+                currentUrl: _avatarUrl,
+                onUpdated: (newUrl) {
+                  setState(() => _avatarUrl = newUrl);
+                  RefreshNotifier.notifyClient();
+                },
               ),
               const SizedBox(height: 8),
               const Text('Cambiar Foto de Perfil', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: AppColors.primary)),

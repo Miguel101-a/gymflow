@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../theme/app_colors.dart';
 import '../../utils/refresh_notifier.dart';
+import '../../widgets/avatar_picker.dart';
 import 'client_shell.dart';
 
 class ProfileScreen extends StatefulWidget {
@@ -19,6 +20,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   String _role = '';
   String _telefono = '';
   String _tipoMembresia = '';
+  String? _avatarUrl;
   List<dynamic> _recentBookings = [];
 
   @override
@@ -72,6 +74,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           _email = user.email ?? '';
           _telefono = profile['telefono'] ?? 'No especificado';
           _tipoMembresia = profile['tipo_membresia'] ?? 'basica';
+          _avatarUrl = profile['avatar_url'];
           _recentBookings = bookings;
           _isLoading = false;
         });
@@ -146,27 +149,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 ),
               ),
               const SizedBox(height: 20),
-              // Avatar
-              Stack(
-                children: [
-                  const CircleAvatar(
-                    radius: 56,
-                    backgroundColor: AppColors.chipBackground,
-                    child: Icon(Icons.person, size: 56, color: AppColors.primary),
-                  ),
-                  Positioned(
-                    bottom: 0,
-                    right: 0,
-                    child: Container(
-                      padding: const EdgeInsets.all(8),
-                      decoration: const BoxDecoration(
-                        color: AppColors.primary,
-                        shape: BoxShape.circle,
-                      ),
-                      child: const Icon(Icons.camera_alt, color: AppColors.white, size: 18),
-                    ),
-                  ),
-                ],
+              AvatarPicker(
+                currentUrl: _avatarUrl,
+                onUpdated: (newUrl) {
+                  setState(() => _avatarUrl = newUrl);
+                  RefreshNotifier.notifyClient();
+                },
               ),
               const SizedBox(height: 16),
               Text(_name, style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w700)),

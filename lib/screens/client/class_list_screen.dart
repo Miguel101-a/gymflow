@@ -369,7 +369,7 @@ class _ClassListScreenState extends State<ClassListScreen> {
                     child: classData['imagen_url'] != null && classData['imagen_url'].toString().isNotEmpty
                         ? Image.network(
                             classData['imagen_url'],
-                            fit: BoxFit.cover,
+                            fit: BoxFit.contain,
                             errorBuilder: (context, error, stackTrace) => const Center(
                               child: Icon(Icons.fitness_center, size: 48, color: AppColors.primary),
                             ),

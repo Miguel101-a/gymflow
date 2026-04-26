@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../theme/app_colors.dart';
+import '../../utils/permissions.dart';
 
 class InstructorClassesScreen extends StatefulWidget {
   const InstructorClassesScreen({super.key});
@@ -14,11 +15,20 @@ class _InstructorClassesScreenState extends State<InstructorClassesScreen> {
   final _supabase = Supabase.instance.client;
   List<dynamic> _classes = [];
   bool _isLoading = true;
+  bool _canCreate = false;
 
   @override
   void initState() {
     super.initState();
-    _fetchMisClases();
+    _loadPermissionsAndClasses();
+  }
+
+  Future<void> _loadPermissionsAndClasses() async {
+    final perms = await Permissions.load();
+    if (mounted) {
+      setState(() => _canCreate = perms[Permissions.crearClases] ?? false);
+    }
+    await _fetchMisClases();
   }
 
   Future<void> _fetchMisClases() async {
@@ -48,6 +58,16 @@ class _InstructorClassesScreenState extends State<InstructorClassesScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.backgroundLight,
+      floatingActionButton: _canCreate
+          ? FloatingActionButton(
+              onPressed: () async {
+                await Navigator.pushNamed(context, '/admin/class_form');
+                _fetchMisClases();
+              },
+              backgroundColor: AppColors.primary,
+              child: const Icon(Icons.add, color: Colors.white),
+            )
+          : null,
       body: SafeArea(
         child: Column(
           children: [

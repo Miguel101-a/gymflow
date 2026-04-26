@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'theme/app_theme.dart';
+import 'utils/permissions.dart';
 import 'screens/login_screen.dart';
 import 'screens/register_screen.dart';
 import 'screens/update_password_screen.dart';
@@ -98,6 +99,7 @@ class _GymFlowAppState extends State<GymFlowApp> {
       }
 
       if (event == AuthChangeEvent.signedOut) {
+        Permissions.clear();
         WidgetsBinding.instance.addPostFrameCallback((_) {
           navigatorKey.currentState?.pushNamedAndRemoveUntil(
             '/login',

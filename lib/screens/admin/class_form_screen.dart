@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../theme/app_colors.dart';
+import '../../utils/permissions.dart';
 
 class ClassFormScreen extends StatefulWidget {
   final Map<String, dynamic>? classData;
@@ -44,6 +45,7 @@ class _ClassFormScreenState extends State<ClassFormScreen> {
   List<dynamic> _instructors = [];
   bool _isLoading = true;
   bool _isSaving = false;
+  bool _hasPermission = true;
 
   final List<String> _niveles = [
     'principiante', 'intermedio', 'avanzado', 'todos'
@@ -81,6 +83,14 @@ class _ClassFormScreenState extends State<ClassFormScreen> {
 
   Future<void> _fetchInstructors() async {
     try {
+      final perms = await Permissions.load();
+      final isEditing = widget.classData != null;
+      final needed = isEditing ? Permissions.editarClases : Permissions.crearClases;
+      if (perms[needed] != true) {
+        if (mounted) setState(() { _hasPermission = false; _isLoading = false; });
+        return;
+      }
+
       final data = await _supabase
           .from('perfiles')
           .select('id, nombre_completo')
@@ -291,6 +301,21 @@ class _ClassFormScreenState extends State<ClassFormScreen> {
       );
       return;
     }
+
+    const openMin = 7 * 60;
+    const closeMin = 23 * 60 + 30;
+    final startTotalMin = _startTime.hour * 60 + _startTime.minute;
+    final endTotalMin = _endTime.hour * 60 + _endTime.minute;
+    if (startTotalMin < openMin || endTotalMin > closeMin) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('El horario debe estar entre 07:00 y 23:30'),
+          backgroundColor: AppColors.error,
+        ),
+      );
+      return;
+    }
+
     setState(() => _isSaving = true);
     try {
       final imageUrl = await _uploadImage();
@@ -349,6 +374,29 @@ class _ClassFormScreenState extends State<ClassFormScreen> {
   Widget build(BuildContext context) {
     if (_isLoading) {
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    }
+
+    if (!_hasPermission) {
+      return Scaffold(
+        backgroundColor: AppColors.backgroundLight,
+        appBar: AppBar(
+          title: const Text('Sin permiso'),
+          backgroundColor: AppColors.white,
+          foregroundColor: AppColors.textPrimary,
+          elevation: 0,
+        ),
+        body: const Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(Icons.lock_outline, size: 56, color: AppColors.textTertiary),
+              SizedBox(height: 16),
+              Text('No tienes permiso para esta acción.',
+                  style: TextStyle(fontSize: 16, color: AppColors.textSecondary)),
+            ],
+          ),
+        ),
+      );
     }
 
     final isEditing = widget.classData != null;

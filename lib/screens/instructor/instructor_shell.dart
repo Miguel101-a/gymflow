@@ -29,8 +29,8 @@ class _InstructorShellState extends State<InstructorShell> {
 
   void _onTabTap(int index) {
     setState(() => _currentIndex = index);
-    // Recargar permisos y clases cada vez que se toca el tab CLASES
-    if (index == 1) RefreshNotifier.notifyInstructor();
+    // Recargar permisos/clases/alumnos al tocar CLASES (1) o ALUMNOS (2)
+    if (index == 1 || index == 2) RefreshNotifier.notifyInstructor();
   }
 
   @override

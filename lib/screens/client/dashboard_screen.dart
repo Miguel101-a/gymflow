@@ -482,7 +482,17 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     height: 140,
                     width: double.infinity,
                     color: AppColors.chipBackground,
-                    child: const Center(child: Icon(Icons.fitness_center, size: 40, color: AppColors.primary)),
+                    child: classData['imagen_url'] != null
+                        ? Image.network(
+                            classData['imagen_url'],
+                            fit: BoxFit.contain,
+                            errorBuilder: (_, __, ___) => const Center(
+                              child: Icon(Icons.fitness_center,
+                                  size: 40, color: AppColors.primary)),
+                          )
+                        : const Center(
+                            child: Icon(Icons.fitness_center,
+                                size: 40, color: AppColors.primary)),
                   ),
                 ),
                 if (badge != null)

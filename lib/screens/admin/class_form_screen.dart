@@ -1,6 +1,8 @@
 // ignore: avoid_web_libraries_in_flutter
+import 'dart:convert';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
 import 'package:flutter_map/flutter_map.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:latlong2/latlong.dart';
@@ -48,6 +50,8 @@ class _ClassFormScreenState extends State<ClassFormScreen> {
   static const LatLng _defaultCenter = LatLng(-17.7833, -63.1821);
   LatLng _markerLatLng = _defaultCenter;
   final MapController _mapController = MapController();
+  final _searchController = TextEditingController();
+  bool _isSearching = false;
 
   List<dynamic> _instructors = [];
   bool _isLoading = true;
@@ -307,6 +311,41 @@ class _ClassFormScreenState extends State<ClassFormScreen> {
 
   String _formatTime(TimeOfDay t) =>
       '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}:00';
+
+  Future<void> _searchLocation() async {
+    final query = _searchController.text.trim();
+    if (query.isEmpty) return;
+    setState(() => _isSearching = true);
+    try {
+      final uri = Uri.parse('https://nominatim.openstreetmap.org/search')
+          .replace(queryParameters: {'q': query, 'format': 'json', 'limit': '1'});
+      final response = await http.get(uri, headers: {'User-Agent': 'gymflow/1.0'});
+      if (response.statusCode == 200) {
+        final results = jsonDecode(response.body) as List;
+        if (results.isNotEmpty) {
+          final lat = double.parse(results[0]['lat'] as String);
+          final lon = double.parse(results[0]['lon'] as String);
+          final point = LatLng(lat, lon);
+          setState(() => _markerLatLng = point);
+          _mapController.move(point, 15);
+        } else {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('No se encontró la ubicación')),
+            );
+          }
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error al buscar: $e'), backgroundColor: AppColors.error),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isSearching = false);
+    }
+  }
 
   Future<void> _saveClass() async {
     if (!_formKey.currentState!.validate() || _selectedInstructorId == null) {
@@ -575,6 +614,44 @@ class _ClassFormScreenState extends State<ClassFormScreen> {
               const Text('Toca el mapa para marcar el punto exacto.',
                   style: TextStyle(fontSize: 12, color: AppColors.textTertiary)),
               const SizedBox(height: 8),
+              Row(
+                children: [
+                  Expanded(
+                    child: TextField(
+                      controller: _searchController,
+                      decoration: const InputDecoration(
+                        hintText: 'Buscar dirección...',
+                        filled: true,
+                        fillColor: AppColors.white,
+                        contentPadding:
+                            EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                        border: OutlineInputBorder(
+                            borderRadius:
+                                BorderRadius.all(Radius.circular(8))),
+                      ),
+                      onSubmitted: (_) => _searchLocation(),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  IconButton(
+                    onPressed: _isSearching ? null : _searchLocation,
+                    icon: _isSearching
+                        ? const SizedBox(
+                            width: 20,
+                            height: 20,
+                            child:
+                                CircularProgressIndicator(strokeWidth: 2))
+                        : const Icon(Icons.search),
+                    style: IconButton.styleFrom(
+                      backgroundColor: AppColors.primary,
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8)),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
               Container(
                 height: 250,
                 clipBehavior: Clip.antiAlias,
@@ -681,10 +758,10 @@ class _ClassFormScreenState extends State<ClassFormScreen> {
                           color: AppColors.chipBackground),
                       // Image.memory — funciona en Web Y Mobile (no usa dart:io)
                       child: _pickedImageBytes != null
-                          ? Image.memory(_pickedImageBytes!, fit: BoxFit.cover)
+                          ? Image.memory(_pickedImageBytes!, fit: BoxFit.contain)
                           : Image.network(
                               _existingImageUrl!,
-                              fit: BoxFit.cover,
+                              fit: BoxFit.contain,
                               errorBuilder: (ctx, err, st) => const Center(
                                 child: Icon(Icons.image_not_supported,
                                     size: 48, color: AppColors.textTertiary),
@@ -798,6 +875,7 @@ class _ClassFormScreenState extends State<ClassFormScreen> {
     _capacidadController.dispose();
     _ubicacionController.dispose();
     _precioController.dispose();
+    _searchController.dispose();
     super.dispose();
   }
 }

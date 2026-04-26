@@ -11,16 +11,13 @@ class Permissions {
   static const String administrarRoles = 'puede_administrar_roles';
   static const String accederConfiguracion = 'puede_acceder_configuracion';
 
-  static Map<String, bool>? _cache;
-
+  /// Carga los permisos del usuario actual desde Supabase.
+  /// Siempre consulta la BD para reflejar cambios hechos por un admin
+  /// sin necesidad de cerrar sesión.
   static Future<Map<String, bool>> load() async {
-    if (_cache != null) return _cache!;
     final supabase = Supabase.instance.client;
     final user = supabase.auth.currentUser;
-    if (user == null) {
-      _cache = {};
-      return _cache!;
-    }
+    if (user == null) return {};
     try {
       final profile = await supabase
           .from('perfiles')
@@ -29,7 +26,7 @@ class Permissions {
           .single();
       final rol = profile['rol'] as String? ?? 'cliente';
       if (rol == 'admin') {
-        _cache = {
+        return {
           crearClases: true,
           editarClases: true,
           cancelarClases: true,
@@ -40,24 +37,19 @@ class Permissions {
           administrarRoles: true,
           accederConfiguracion: true,
         };
-      } else {
-        final permisos = profile['permisos'];
-        if (permisos is Map) {
-          _cache = Map<String, bool>.from(
-            permisos.map((k, v) => MapEntry(k.toString(), v == true)),
-          );
-        } else {
-          _cache = {};
-        }
       }
-      return _cache!;
+      final permisos = profile['permisos'];
+      if (permisos is Map) {
+        return Map<String, bool>.from(
+          permisos.map((k, v) => MapEntry(k.toString(), v == true)),
+        );
+      }
+      return {};
     } catch (_) {
-      _cache = {};
-      return _cache!;
+      return {};
     }
   }
 
-  static bool can(String key) => _cache?[key] ?? false;
-
-  static void clear() => _cache = null;
+  /// No-op kept for backwards compatibility. Permissions ya no se cachean.
+  static void clear() {}
 }

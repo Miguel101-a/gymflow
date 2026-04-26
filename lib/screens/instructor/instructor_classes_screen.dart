@@ -54,6 +54,7 @@ class _InstructorClassesScreenState extends State<InstructorClassesScreen> {
     if (confirmed != true) return;
 
     try {
+      final currentUser = _supabase.auth.currentUser;
       final now = DateTime.now().toIso8601String();
       await _supabase.from('clases').update({
         'cancelada': true,
@@ -77,6 +78,7 @@ class _InstructorClassesScreenState extends State<InstructorClassesScreen> {
         if (activas && r['usuario_id'] != null) {
           notifs.add({
             'usuario_id': r['usuario_id'],
+            'autor_id': currentUser?.id,
             'clase_id': classId,
             'tipo': 'cancelacion',
             'asunto': 'Clase cancelada',

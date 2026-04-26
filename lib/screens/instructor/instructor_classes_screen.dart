@@ -98,7 +98,7 @@ class _InstructorClassesScreenState extends State<InstructorClassesScreen> {
             'asunto': 'Clase cancelada',
             'contenido':
                 'La clase $className ha sido cancelada. Revisa el calendario para más información.',
-            'grupo_destinatario': 'clientes',
+            'grupo_destinatario': 'clase_especifica',
           });
         }
       }

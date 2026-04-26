@@ -336,7 +336,7 @@ class _ClassDetailScreenState extends State<ClassDetailScreen> {
                         height: 280, width: double.infinity,
                         color: AppColors.chipBackground,
                         child: classData['imagen_url'] != null
-                            ? Image.network(classData['imagen_url'], fit: BoxFit.cover,
+                            ? Image.network(classData['imagen_url'], fit: BoxFit.contain,
                                 errorBuilder: (_, __, ___) => const Center(
                                   child: Icon(Icons.fitness_center, size: 64, color: AppColors.primary)))
                             : const Center(child: Icon(Icons.fitness_center, size: 64, color: AppColors.primary)),
@@ -487,7 +487,8 @@ class _ClassDetailScreenState extends State<ClassDetailScreen> {
                               interactionOptions: const InteractionOptions(
                                 flags: InteractiveFlag.pinchZoom |
                                     InteractiveFlag.drag |
-                                    InteractiveFlag.doubleTapZoom,
+                                    InteractiveFlag.doubleTapZoom |
+                                    InteractiveFlag.scrollWheelZoom,
                               ),
                             ),
                             children: [

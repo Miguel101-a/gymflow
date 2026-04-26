@@ -49,11 +49,13 @@ class _InstructorStudentsScreenState extends State<InstructorStudentsScreen> {
       final data = await _supabase
           .from('reservas')
           .select(
-              'usuario_id, estado, clase:clases!inner(id, nombre, instructor_id), usuario:perfiles!inner(nombre_completo, email, telefono, tipo_membresia)')
+              'usuario_id, estado, clase:clases!inner(id, nombre, instructor_id, cancelada), usuario:perfiles!inner(nombre_completo, email, telefono, tipo_membresia)')
           .eq('clase.instructor_id', user.id)
           .eq('estado', 'confirmada');
 
-      final enriched = (data as List).map((r) => {
+      final enriched = (data as List)
+          .where((r) => r['clase']?['cancelada'] != true)
+          .map((r) => {
         'nombre_completo': r['usuario']?['nombre_completo'] ?? 'Sin nombre',
         'email': r['usuario']?['email'] ?? '',
         'telefono': r['usuario']?['telefono'] ?? 'Sin teléfono',
@@ -61,6 +63,7 @@ class _InstructorStudentsScreenState extends State<InstructorStudentsScreen> {
         'clase_nombre': r['clase']?['nombre'] ?? '',
         'usuario_id': r['usuario_id'],
       }).toList();
+
 
       if (mounted) {
         setState(() {

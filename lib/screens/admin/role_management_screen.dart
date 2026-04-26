@@ -99,12 +99,22 @@ class _RoleManagementScreenState extends State<RoleManagementScreen> {
             Future<void> handleSave() async {
               setSheetState(() => isSaving = true);
               try {
-                await _supabase.from('perfiles').update({
+                final updatedRow = await _supabase.from('perfiles').update({
                   'rol': currentRole,
                   'permisos': fullPerms,
                   'updated_at': DateTime.now().toIso8601String(),
-                }).eq('id', user['id'].toString());
+                }).eq('id', user['id'].toString()).select('id').maybeSingle();
                 if (!mounted) return;
+                if (updatedRow == null) {
+                  setSheetState(() => isSaving = false);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('No se pudo guardar. Verifica las políticas de seguridad.'),
+                      backgroundColor: AppColors.error,
+                    ),
+                  );
+                  return;
+                }
                 Navigator.pop(sheetContext);
                 ScaffoldMessenger.of(context).showSnackBar(
                   const SnackBar(

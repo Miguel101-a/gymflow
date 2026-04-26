@@ -17,6 +17,7 @@ class _InstructorClassesScreenState extends State<InstructorClassesScreen> {
   List<dynamic> _classes = [];
   bool _isLoading = true;
   bool _canCreate = false;
+  bool _canEdit = false;
   bool _canCancel = false;
 
   @override
@@ -41,6 +42,7 @@ class _InstructorClassesScreenState extends State<InstructorClassesScreen> {
     if (mounted) {
       setState(() {
         _canCreate = perms[Permissions.crearClases] ?? false;
+        _canEdit = perms[Permissions.editarClases] ?? false;
         _canCancel = perms[Permissions.cancelarClases] ?? false;
       });
     }
@@ -294,24 +296,41 @@ class _InstructorClassesScreenState extends State<InstructorClassesScreen> {
                         ),
                       ),
                     ),
-                    if (_canCancel && !cancelada)
+                    if (!cancelada && (_canEdit || _canCancel))
                       PopupMenuButton<String>(
                         icon: const Icon(Icons.more_vert,
                             color: AppColors.textSecondary, size: 20),
-                        onSelected: (v) {
+                        onSelected: (v) async {
                           if (v == 'cancel') _cancelClass(claseId, nombre);
+                          if (v == 'edit') {
+                            final result = await Navigator.pushNamed(
+                                context, '/admin/class_form',
+                                arguments: clase);
+                            if (result == true) _fetchMisClases();
+                          }
                         },
-                        itemBuilder: (context) => const [
-                          PopupMenuItem(
-                            value: 'cancel',
-                            child: Row(children: [
-                              Icon(Icons.event_busy,
-                                  size: 18, color: AppColors.error),
-                              SizedBox(width: 8),
-                              Text('Cancelar clase',
-                                  style: TextStyle(color: AppColors.error)),
-                            ]),
-                          ),
+                        itemBuilder: (context) => [
+                          if (_canEdit)
+                            const PopupMenuItem(
+                              value: 'edit',
+                              child: Row(children: [
+                                Icon(Icons.edit_outlined,
+                                    size: 18, color: AppColors.textSecondary),
+                                SizedBox(width: 8),
+                                Text('Editar clase'),
+                              ]),
+                            ),
+                          if (_canCancel)
+                            const PopupMenuItem(
+                              value: 'cancel',
+                              child: Row(children: [
+                                Icon(Icons.event_busy,
+                                    size: 18, color: AppColors.error),
+                                SizedBox(width: 8),
+                                Text('Cancelar clase',
+                                    style: TextStyle(color: AppColors.error)),
+                              ]),
+                            ),
                         ],
                       ),
                   ],

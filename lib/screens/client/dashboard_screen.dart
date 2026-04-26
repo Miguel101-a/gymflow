@@ -57,7 +57,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
           .eq('usuario_id', user.id)
           .eq('estado', 'confirmada')
           .order('created_at', ascending: false)
-          .limit(5);
+          .limit(10);
+
+      final activeReservations = (reservations as List)
+          .where((r) => r['clase']?['cancelada'] != true)
+          .toList()
+          .take(5)
+          .toList();
 
       // Fetch notifications
       final notifications = await _supabase
@@ -70,7 +76,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       if (mounted) {
         setState(() {
           _userName = profile['nombre_completo'] ?? 'Usuario';
-          _upcomingClasses = reservations;
+          _upcomingClasses = activeReservations;
           _notifications = notifications;
           _isLoading = false;
         });

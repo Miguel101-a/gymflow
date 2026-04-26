@@ -107,7 +107,8 @@ class _InstructorClassesScreenState extends State<InstructorClassesScreen> {
         await _supabase.from('comunicaciones').insert(notifs);
       }
 
-      _fetchMisClases();
+      RefreshNotifier.notifyInstructor();
+      RefreshNotifier.notifyClient();
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -144,7 +145,7 @@ class _InstructorClassesScreenState extends State<InstructorClassesScreen> {
     if (confirmed != true) return;
     try {
       await _supabase.from('clases').delete().eq('id', classId);
-      _fetchMisClases();
+      RefreshNotifier.notifyInstructor();
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Clase eliminada'), backgroundColor: AppColors.success),

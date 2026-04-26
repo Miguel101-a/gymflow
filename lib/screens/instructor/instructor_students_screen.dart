@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../theme/app_colors.dart';
+import '../../utils/refresh_notifier.dart';
 
 class InstructorStudentsScreen extends StatefulWidget {
   const InstructorStudentsScreen({super.key});
@@ -22,12 +23,18 @@ class _InstructorStudentsScreenState extends State<InstructorStudentsScreen> {
     super.initState();
     _fetch();
     _searchCtrl.addListener(_onSearch);
+    RefreshNotifier.instructorRefresh.addListener(_onRefresh);
   }
 
   @override
   void dispose() {
+    RefreshNotifier.instructorRefresh.removeListener(_onRefresh);
     _searchCtrl.dispose();
     super.dispose();
+  }
+
+  void _onRefresh() {
+    _fetch();
   }
 
   void _onSearch() {

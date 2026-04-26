@@ -73,55 +73,18 @@ class _RoleManagementScreenState extends State<RoleManagementScreen> {
     return {for (final e in _permissions) e.key: false};
   }
 
-  Future<void> _changeRole(String userId, String newRole) async {
-    try {
-      final newPerms = _defaultPermsForRole(newRole);
-      await _supabase.from('perfiles').update({
-        'rol': newRole,
-        'permisos': newPerms,
-        'updated_at': DateTime.now().toIso8601String(),
-      }).eq('id', userId);
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Rol cambiado a $newRole'), backgroundColor: AppColors.success),
-        );
-      }
-      _fetchUsers();
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: $e'), backgroundColor: AppColors.error),
-        );
-      }
-    }
-  }
-
-  Future<void> _updatePermission(String userId, Map<String, bool> permisos) async {
-    try {
-      await _supabase.from('perfiles').update({
-        'permisos': permisos,
-        'updated_at': DateTime.now().toIso8601String(),
-      }).eq('id', userId);
-      _fetchUsers();
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: $e'), backgroundColor: AppColors.error),
-        );
-      }
-    }
-  }
-
   void _openUserDetail(Map<String, dynamic> user) {
-    final perms = (user['permisos'] is Map)
+    final initialPerms = (user['permisos'] is Map)
         ? Map<String, bool>.from(
             (user['permisos'] as Map).map((k, v) => MapEntry(k.toString(), v == true)))
         : <String, bool>{};
     final fullPerms = {
-      for (final e in _permissions) e.key: perms[e.key] ?? false,
+      for (final e in _permissions) e.key: initialPerms[e.key] ?? false,
     };
 
     String currentRole = user['rol'] ?? 'cliente';
+    final initialRole = currentRole;
+    bool isSaving = false;
 
     showModalBottomSheet(
       context: context,
@@ -133,6 +96,31 @@ class _RoleManagementScreenState extends State<RoleManagementScreen> {
       builder: (sheetContext) {
         return StatefulBuilder(
           builder: (sheetContext, setSheetState) {
+            Future<void> handleSave() async {
+              setSheetState(() => isSaving = true);
+              try {
+                await _supabase.from('perfiles').update({
+                  'rol': currentRole,
+                  'permisos': fullPerms,
+                  'updated_at': DateTime.now().toIso8601String(),
+                }).eq('id', user['id'].toString());
+                if (!mounted) return;
+                Navigator.pop(sheetContext);
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                      content: Text('Cambios guardados'),
+                      backgroundColor: AppColors.success),
+                );
+                _fetchUsers();
+              } catch (e) {
+                setSheetState(() => isSaving = false);
+                if (!mounted) return;
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text('Error: $e'), backgroundColor: AppColors.error),
+                );
+              }
+            }
+
             return DraggableScrollableSheet(
               initialChildSize: 0.85,
               minChildSize: 0.5,
@@ -179,18 +167,39 @@ class _RoleManagementScreenState extends State<RoleManagementScreen> {
                                 DropdownMenuItem(value: 'instructor', child: Text('Instructor')),
                                 DropdownMenuItem(value: 'admin', child: Text('Administrador')),
                               ],
-                              onChanged: (v) async {
+                              onChanged: (v) {
                                 if (v == null || v == currentRole) return;
-                                await _changeRole(user['id'].toString(), v);
                                 setSheetState(() {
                                   currentRole = v;
-                                  fullPerms.clear();
-                                  fullPerms.addAll(_defaultPermsForRole(v));
+                                  // Si cambia el rol, sugerimos los defaults de ese rol.
+                                  fullPerms
+                                    ..clear()
+                                    ..addAll(_defaultPermsForRole(v));
                                 });
                               },
                             ),
                           ),
                         ),
+                        if (currentRole != initialRole) ...[
+                          const SizedBox(height: 8),
+                          Container(
+                            padding: const EdgeInsets.all(10),
+                            decoration: BoxDecoration(
+                              color: AppColors.warning.withValues(alpha: 0.08),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: const Row(children: [
+                              Icon(Icons.info_outline, size: 16, color: AppColors.warning),
+                              SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  'Se aplicaron los permisos por defecto del nuevo rol. Ajústalos si quieres antes de guardar.',
+                                  style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                                ),
+                              ),
+                            ]),
+                          ),
+                        ],
                         const SizedBox(height: 24),
                         const Text('Permisos específicos',
                             style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700)),
@@ -212,16 +221,55 @@ class _RoleManagementScreenState extends State<RoleManagementScreen> {
                                 title: Text(perm.value, style: const TextStyle(fontSize: 13)),
                                 value: fullPerms[perm.key] ?? false,
                                 activeColor: AppColors.primary,
-                                onChanged: (v) async {
+                                onChanged: (v) {
                                   setSheetState(() => fullPerms[perm.key] = v ?? false);
-                                  await _updatePermission(
-                                      user['id'].toString(), Map<String, bool>.from(fullPerms));
                                 },
                               );
                             }).toList(),
                           ),
                         ),
-                        const SizedBox(height: 20),
+                        const SizedBox(height: 24),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: OutlinedButton(
+                                onPressed: isSaving ? null : () => Navigator.pop(sheetContext),
+                                style: OutlinedButton.styleFrom(
+                                  padding: const EdgeInsets.symmetric(vertical: 14),
+                                  side: const BorderSide(color: AppColors.border),
+                                  shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(10)),
+                                ),
+                                child: const Text('Cancelar',
+                                    style: TextStyle(color: AppColors.textSecondary)),
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              flex: 2,
+                              child: ElevatedButton(
+                                onPressed: isSaving ? null : handleSave,
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: AppColors.primary,
+                                  padding: const EdgeInsets.symmetric(vertical: 14),
+                                  shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(10)),
+                                ),
+                                child: isSaving
+                                    ? const SizedBox(
+                                        height: 18,
+                                        width: 18,
+                                        child: CircularProgressIndicator(
+                                            strokeWidth: 2, color: Colors.white),
+                                      )
+                                    : const Text('Guardar cambios',
+                                        style: TextStyle(
+                                            color: Colors.white, fontWeight: FontWeight.w600)),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 16),
                       ],
                     ),
                   ),

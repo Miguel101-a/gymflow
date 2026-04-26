@@ -469,157 +469,180 @@ class _ReservationsScreenState extends State<ReservationsScreen>
     required bool isUpcoming,
     required bool canCancel,
   }) {
+    final capacidad = clase['capacidad_maxima'];
     return Container(
       decoration: BoxDecoration(
         color: AppColors.white,
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: AppColors.border, width: 0.5),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Imagen de la clase
-          Container(
-            height: 140, width: double.infinity,
-            decoration: const BoxDecoration(
-              color: AppColors.chipBackground,
-              borderRadius:
-                  BorderRadius.vertical(top: Radius.circular(12)),
-            ),
-            child: clase['imagen_url'] != null &&
-                    clase['imagen_url'].toString().isNotEmpty
-                ? ClipRRect(
-                    borderRadius: const BorderRadius.vertical(
-                        top: Radius.circular(12)),
-                    child: Image.network(clase['imagen_url'],
+      child: IntrinsicHeight(
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            ClipRRect(
+              borderRadius: const BorderRadius.horizontal(left: Radius.circular(12)),
+              child: Container(
+                width: 120,
+                color: AppColors.chipBackground,
+                child: clase['imagen_url'] != null &&
+                        clase['imagen_url'].toString().isNotEmpty
+                    ? Image.network(clase['imagen_url'],
                         fit: BoxFit.cover,
                         errorBuilder: (_, __, ___) => const Center(
                             child: Icon(Icons.fitness_center,
-                                size: 48, color: AppColors.primary))),
-                  )
-                : const Center(
-                    child: Icon(Icons.fitness_center,
-                        size: 48, color: AppColors.primary)),
-          ),
-          Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                size: 36, color: AppColors.primary)))
+                    : const Center(
+                        child: Icon(Icons.fitness_center,
+                            size: 36, color: AppColors.primary)),
+              ),
+            ),
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.all(14),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Expanded(
-                        child: Text(title,
-                            style: const TextStyle(
-                                fontSize: 17,
-                                fontWeight: FontWeight.w700))),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 10, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: statusColor.withValues(alpha: 0.1),
-                        borderRadius: BorderRadius.circular(6),
-                      ),
-                      child: Text(status,
-                          style: TextStyle(
-                              fontSize: 11,
-                              fontWeight: FontWeight.w700,
-                              color: statusColor)),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                _infoRow(Icons.calendar_today, dateTime),
-                const SizedBox(height: 4),
-                _infoRow(Icons.location_on_outlined, location),
-                const SizedBox(height: 4),
-                _infoRow(
-                    Icons.person_outline, 'Instructor: $instructor'),
-                // Aviso si ya no se puede cancelar
-                if (isUpcoming && !canCancel) ...[
-                  const SizedBox(height: 10),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 10, vertical: 7),
-                    decoration: BoxDecoration(
-                      color: AppColors.error.withValues(alpha: 0.07),
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(
-                          color:
-                              AppColors.error.withValues(alpha: 0.2)),
-                    ),
-                    child: Row(
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Icon(Icons.lock_clock,
-                            size: 14,
-                            color:
-                                AppColors.error.withValues(alpha: 0.8)),
-                        const SizedBox(width: 6),
-                        const Expanded(
-                          child: Text(
-                            'Ya no es posible cancelar (menos de 12h para la clase)',
-                            style: TextStyle(
-                                fontSize: 11, color: AppColors.error),
+                        Expanded(
+                            child: Text(title,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w700))),
+                        const SizedBox(width: 8),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 8, vertical: 3),
+                          decoration: BoxDecoration(
+                            color: statusColor.withValues(alpha: 0.1),
+                            borderRadius: BorderRadius.circular(6),
                           ),
+                          child: Text(status,
+                              style: TextStyle(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w700,
+                                  color: statusColor)),
                         ),
                       ],
                     ),
-                  ),
-                ],
-                const SizedBox(height: 14),
-                Row(
-                  children: [
-                    Expanded(
-                      child: ElevatedButton(
-                        onPressed: () => Navigator.pushNamed(
-                            context, '/classDetail',
-                            arguments: clase),
-                        style: ElevatedButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(
-                              vertical: 12),
-                          minimumSize: Size.zero,
+                    const SizedBox(height: 6),
+                    _infoRow(Icons.calendar_today, dateTime),
+                    const SizedBox(height: 4),
+                    _infoRow(Icons.location_on_outlined, location),
+                    const SizedBox(height: 4),
+                    _infoRow(
+                        Icons.person_outline, 'Instructor: $instructor'),
+                    if (capacidad != null) ...[
+                      const SizedBox(height: 6),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 8, vertical: 3),
+                        decoration: BoxDecoration(
+                          color: AppColors.primary.withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(12),
                         ),
-                        child: const Text('Ver Detalles',
-                            style: TextStyle(fontSize: 14)),
+                        child: Row(mainAxisSize: MainAxisSize.min, children: [
+                          const Icon(Icons.people_outline,
+                              size: 12, color: AppColors.primary),
+                          const SizedBox(width: 4),
+                          Text('$capacidad plazas',
+                              style: const TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w700,
+                                  color: AppColors.primary)),
+                        ]),
                       ),
-                    ),
-                    if (isUpcoming) ...[
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: OutlinedButton(
-                          onPressed: () =>
-                              _confirmAndCancel(reservation),
-                          style: OutlinedButton.styleFrom(
-                            padding: const EdgeInsets.symmetric(
-                                vertical: 12),
-                            minimumSize: Size.zero,
-                            side: BorderSide(
-                              color: canCancel
-                                  ? AppColors.error
-                                      .withValues(alpha: 0.5)
-                                  : AppColors.border,
+                    ],
+                    // Aviso si ya no se puede cancelar
+                    if (isUpcoming && !canCancel) ...[
+                      const SizedBox(height: 8),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 10, vertical: 7),
+                        decoration: BoxDecoration(
+                          color: AppColors.error.withValues(alpha: 0.07),
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(
+                              color:
+                                  AppColors.error.withValues(alpha: 0.2)),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(Icons.lock_clock,
+                                size: 13,
+                                color:
+                                    AppColors.error.withValues(alpha: 0.8)),
+                            const SizedBox(width: 6),
+                            const Expanded(
+                              child: Text(
+                                'Ya no es posible cancelar (menos de 12h)',
+                                style: TextStyle(
+                                    fontSize: 11, color: AppColors.error),
+                              ),
                             ),
-                          ),
-                          child: Text(
-                            'Cancelar',
-                            style: TextStyle(
-                              fontSize: 14,
-                              color: canCancel
-                                  ? AppColors.error
-                                  : AppColors.textTertiary,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
+                          ],
                         ),
                       ),
                     ],
+                    const SizedBox(height: 10),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: ElevatedButton(
+                            onPressed: () => Navigator.pushNamed(
+                                context, '/classDetail',
+                                arguments: clase),
+                            style: ElevatedButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(
+                                  vertical: 10),
+                              minimumSize: Size.zero,
+                            ),
+                            child: const Text('Ver Detalles',
+                                style: TextStyle(fontSize: 13)),
+                          ),
+                        ),
+                        if (isUpcoming) ...[
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: OutlinedButton(
+                              onPressed: () =>
+                                  _confirmAndCancel(reservation),
+                              style: OutlinedButton.styleFrom(
+                                padding: const EdgeInsets.symmetric(
+                                    vertical: 10),
+                                minimumSize: Size.zero,
+                                side: BorderSide(
+                                  color: canCancel
+                                      ? AppColors.error
+                                          .withValues(alpha: 0.5)
+                                      : AppColors.border,
+                                ),
+                              ),
+                              child: Text(
+                                'Cancelar',
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  color: canCancel
+                                      ? AppColors.error
+                                      : AppColors.textTertiary,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
                   ],
                 ),
-              ],
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

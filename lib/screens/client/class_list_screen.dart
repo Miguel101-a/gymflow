@@ -355,74 +355,101 @@ class _ClassListScreenState extends State<ClassListScreen> {
           borderRadius: BorderRadius.circular(12),
           border: Border.all(color: AppColors.border, width: 0.5),
         ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Stack(
-              children: [
-                ClipRRect(
-                  borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
-                  child: Container(
-                    height: 160,
-                    width: double.infinity,
-                    color: AppColors.chipBackground,
-                    child: classData['imagen_url'] != null && classData['imagen_url'].toString().isNotEmpty
-                        ? Image.network(
-                            classData['imagen_url'],
-                            fit: BoxFit.contain,
-                            errorBuilder: (context, error, stackTrace) => const Center(
-                              child: Icon(Icons.fitness_center, size: 48, color: AppColors.primary),
-                            ),
-                          )
-                        : const Center(child: Icon(Icons.fitness_center, size: 48, color: AppColors.primary)),
-                  ),
+        child: IntrinsicHeight(
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              ClipRRect(
+                borderRadius: const BorderRadius.horizontal(left: Radius.circular(12)),
+                child: Container(
+                  width: 110,
+                  color: AppColors.chipBackground,
+                  child: classData['imagen_url'] != null && classData['imagen_url'].toString().isNotEmpty
+                      ? Image.network(
+                          classData['imagen_url'],
+                          fit: BoxFit.cover,
+                          errorBuilder: (context, error, stackTrace) => const Center(
+                            child: Icon(Icons.fitness_center, size: 36, color: AppColors.primary),
+                          ),
+                        )
+                      : const Center(child: Icon(Icons.fitness_center, size: 36, color: AppColors.primary)),
                 ),
-              ],
-            ),
-            Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Expanded(child: Text(title, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700))),
-                      Text(spots, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.primary)),
-                    ],
-                  ),
-                  const SizedBox(height: 4),
-                  Row(children: [
-                    const Icon(Icons.person_outline, size: 14, color: AppColors.textSecondary),
-                    const SizedBox(width: 4),
-                    Text('Instructor: $instructor', style: const TextStyle(fontSize: 13, color: AppColors.textSecondary)),
-                  ]),
-                  const SizedBox(height: 12),
-                  Row(
+              ),
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.all(14),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(time, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
-                          Text(duration, style: const TextStyle(fontSize: 13, color: AppColors.textSecondary)),
+                          Text(title,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+                          const SizedBox(height: 4),
+                          Row(children: [
+                            const Icon(Icons.person_outline, size: 13, color: AppColors.textSecondary),
+                            const SizedBox(width: 4),
+                            Expanded(
+                              child: Text('Instructor: $instructor',
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+                            ),
+                          ]),
+                          const SizedBox(height: 4),
+                          Row(children: [
+                            const Icon(Icons.access_time, size: 13, color: AppColors.textSecondary),
+                            const SizedBox(width: 4),
+                            Expanded(
+                              child: Text('$time · $duration',
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+                            ),
+                          ]),
                         ],
                       ),
-                      ElevatedButton(
-                        onPressed: () => Navigator.pushNamed(context, '/classDetail', arguments: classData),
-                        style: ElevatedButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-                          minimumSize: Size.zero,
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                        ),
-                        child: const Text('Detalles', style: TextStyle(fontSize: 13)),
+                      const SizedBox(height: 10),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: AppColors.primary.withValues(alpha: 0.1),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Row(mainAxisSize: MainAxisSize.min, children: [
+                              const Icon(Icons.people_outline, size: 13, color: AppColors.primary),
+                              const SizedBox(width: 4),
+                              Text(spots,
+                                  style: const TextStyle(
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w700,
+                                      color: AppColors.primary)),
+                            ]),
+                          ),
+                          ElevatedButton(
+                            onPressed: () => Navigator.pushNamed(context, '/classDetail', arguments: classData),
+                            style: ElevatedButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
+                              minimumSize: Size.zero,
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                            ),
+                            child: const Text('Detalles', style: TextStyle(fontSize: 12)),
+                          ),
+                        ],
                       ),
                     ],
                   ),
-                ],
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );

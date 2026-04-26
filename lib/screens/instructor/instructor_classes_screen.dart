@@ -126,6 +126,39 @@ class _InstructorClassesScreenState extends State<InstructorClassesScreen> {
     }
   }
 
+  Future<void> _deleteClass(String classId) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Eliminar Clase'),
+        content: const Text('¿Eliminar esta clase cancelada? Esta acción no se puede deshacer.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancelar')),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Eliminar', style: TextStyle(color: AppColors.error)),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    try {
+      await _supabase.from('clases').delete().eq('id', classId);
+      _fetchMisClases();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Clase eliminada'), backgroundColor: AppColors.success),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error: $e'), backgroundColor: AppColors.error),
+        );
+      }
+    }
+  }
+
   Future<void> _fetchMisClases() async {
     final user = _supabase.auth.currentUser;
     if (user == null) return;
@@ -296,12 +329,13 @@ class _InstructorClassesScreenState extends State<InstructorClassesScreen> {
                         ),
                       ),
                     ),
-                    if (!cancelada && (_canEdit || _canCancel))
+                    if (cancelada || (!cancelada && (_canEdit || _canCancel)))
                       PopupMenuButton<String>(
                         icon: const Icon(Icons.more_vert,
                             color: AppColors.textSecondary, size: 20),
                         onSelected: (v) async {
                           if (v == 'cancel') _cancelClass(claseId, nombre);
+                          if (v == 'delete') _deleteClass(claseId);
                           if (v == 'edit') {
                             final result = await Navigator.pushNamed(
                                 context, '/admin/class_form',
@@ -310,7 +344,7 @@ class _InstructorClassesScreenState extends State<InstructorClassesScreen> {
                           }
                         },
                         itemBuilder: (context) => [
-                          if (_canEdit)
+                          if (_canEdit && !cancelada)
                             const PopupMenuItem(
                               value: 'edit',
                               child: Row(children: [
@@ -320,7 +354,7 @@ class _InstructorClassesScreenState extends State<InstructorClassesScreen> {
                                 Text('Editar clase'),
                               ]),
                             ),
-                          if (_canCancel)
+                          if (_canCancel && !cancelada)
                             const PopupMenuItem(
                               value: 'cancel',
                               child: Row(children: [
@@ -328,6 +362,17 @@ class _InstructorClassesScreenState extends State<InstructorClassesScreen> {
                                     size: 18, color: AppColors.error),
                                 SizedBox(width: 8),
                                 Text('Cancelar clase',
+                                    style: TextStyle(color: AppColors.error)),
+                              ]),
+                            ),
+                          if (cancelada)
+                            const PopupMenuItem(
+                              value: 'delete',
+                              child: Row(children: [
+                                Icon(Icons.delete_outline,
+                                    size: 18, color: AppColors.error),
+                                SizedBox(width: 8),
+                                Text('Eliminar clase',
                                     style: TextStyle(color: AppColors.error)),
                               ]),
                             ),

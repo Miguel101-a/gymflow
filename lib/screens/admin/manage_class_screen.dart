@@ -122,7 +122,7 @@ class _ManageClassScreenState extends State<ManageClassScreen> {
             'asunto': 'Clase cancelada',
             'contenido':
                 'La clase $className ha sido cancelada. Revisa el calendario para más información.',
-            'grupo_destinatario': 'clientes',
+            'grupo_destinatario': 'clase_especifica',
           });
         }
       }

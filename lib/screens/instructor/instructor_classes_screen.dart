@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../theme/app_colors.dart';
 import '../../utils/permissions.dart';
+import '../../utils/refresh_notifier.dart';
 
 class InstructorClassesScreen extends StatefulWidget {
   const InstructorClassesScreen({super.key});
@@ -21,6 +22,17 @@ class _InstructorClassesScreenState extends State<InstructorClassesScreen> {
   @override
   void initState() {
     super.initState();
+    _loadPermissionsAndClasses();
+    RefreshNotifier.instructorRefresh.addListener(_onRefresh);
+  }
+
+  @override
+  void dispose() {
+    RefreshNotifier.instructorRefresh.removeListener(_onRefresh);
+    super.dispose();
+  }
+
+  void _onRefresh() {
     _loadPermissionsAndClasses();
   }
 

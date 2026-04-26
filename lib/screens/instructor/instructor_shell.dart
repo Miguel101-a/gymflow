@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../theme/app_colors.dart';
+import '../../utils/refresh_notifier.dart';
 import 'instructor_dashboard_screen.dart';
 import 'instructor_classes_screen.dart';
 import 'instructor_students_screen.dart';
@@ -26,6 +27,12 @@ class _InstructorShellState extends State<InstructorShell> {
     InstructorProfileScreen(),
   ];
 
+  void _onTabTap(int index) {
+    setState(() => _currentIndex = index);
+    // Recargar permisos y clases cada vez que se toca el tab CLASES
+    if (index == 1) RefreshNotifier.notifyInstructor();
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -46,7 +53,7 @@ class _InstructorShellState extends State<InstructorShell> {
         ),
         child: BottomNavigationBar(
           currentIndex: _currentIndex,
-          onTap: (index) => setState(() => _currentIndex = index),
+          onTap: _onTabTap,
           type: BottomNavigationBarType.fixed,
           backgroundColor: AppColors.white,
           selectedItemColor: AppColors.primary,

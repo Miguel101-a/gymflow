@@ -17,6 +17,23 @@ flutter test test/foo_test.dart  # run a single test file
 
 Deploy: Vercel auto-deploys from `main` (see `vercel.json`, builds `flutter build web`). Active dev branch is `claude/review-gymflow-app-YIfJz`. To ship: push to that branch → open PR → merge to `main` → Vercel deploys.
 
+## Branching
+
+When the user asks for a change, **create the branch yourself** with the right prefix based on the kind of work. Use a short kebab-case description after the slash (e.g. `feat/registro-dieta`, `fix/notificaciones-cancelacion`).
+
+Allowed prefixes:
+
+1. **`feat/`** — new functionality (e.g. `feat/mapa-gps`, `feat/buscador-ubicacion`)
+2. **`fix/`** — bug fixes, including RLS / silent failures (e.g. `fix/notificaciones-instructor`)
+3. **`ui/`** — visual or component changes (e.g. `ui/tarjetas-horizontales`, `ui/ajuste-imagenes`)
+4. **`refactor/`** — code cleanup without behavior change (e.g. `refactor/permissions-load`)
+5. **`docs/`** — documentation only (e.g. `docs/branching-guide`)
+6. **`chore/`** — config, dependencies, tooling (e.g. `chore/pubspec-http`, `chore/claude-settings`)
+
+Pick the closest match — don't invent new prefixes. If a change touches multiple categories, pick the dominant one (e.g. a feature with UI = `feat/`).
+
+The session may already be locked to a specific branch (`claude/...`) by the harness; in that case keep working there. Only create new branches when the harness is not pinning one.
+
 ## Backend (Supabase)
 
 Project URL and anon key are hard-coded in `lib/main.dart`. There is no `.env`. Schema lives only in Supabase — **no migration files in this repo**. When the schema needs to change, hand the SQL to the user to run manually in the Supabase SQL editor.

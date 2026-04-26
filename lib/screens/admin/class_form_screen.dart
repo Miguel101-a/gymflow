@@ -1,7 +1,9 @@
 // ignore: avoid_web_libraries_in_flutter
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
+import 'package:flutter_map/flutter_map.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:latlong2/latlong.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../theme/app_colors.dart';
 import '../../utils/permissions.dart';
@@ -42,6 +44,11 @@ class _ClassFormScreenState extends State<ClassFormScreen> {
   TimeOfDay _endTime = const TimeOfDay(hour: 9, minute: 0);
   bool _activa = true;
 
+  // Plaza 24 de Septiembre, Santa Cruz de la Sierra
+  static const LatLng _defaultCenter = LatLng(-17.7833, -63.1821);
+  LatLng _markerLatLng = _defaultCenter;
+  final MapController _mapController = MapController();
+
   List<dynamic> _instructors = [];
   bool _isLoading = true;
   bool _isSaving = false;
@@ -78,6 +85,14 @@ class _ClassFormScreenState extends State<ClassFormScreen> {
     if (d['hora_fin'] != null) {
       final p = d['hora_fin'].toString().split(':');
       if (p.length >= 2) _endTime = TimeOfDay(hour: int.parse(p[0]), minute: int.parse(p[1]));
+    }
+    final lat = d['latitud'];
+    final lng = d['longitud'];
+    if (lat != null && lng != null) {
+      _markerLatLng = LatLng(
+        (lat as num).toDouble(),
+        (lng as num).toDouble(),
+      );
     }
   }
 
@@ -337,6 +352,8 @@ class _ClassFormScreenState extends State<ClassFormScreen> {
         'duracion_minutos': endMin > startMin ? endMin - startMin : 0,
         'imagen_url': imageUrl,
         'precio': double.tryParse(_precioController.text) ?? 0,
+        'latitud': _markerLatLng.latitude,
+        'longitud': _markerLatLng.longitude,
       };
 
       if (widget.classData == null) {
@@ -545,6 +562,62 @@ class _ClassFormScreenState extends State<ClassFormScreen> {
                 decoration: const InputDecoration(
                     labelText: 'Ubicación / Sala',
                     filled: true, fillColor: AppColors.white),
+              ),
+              const SizedBox(height: 16),
+
+              // ── Mapa: ubicación GPS ────────────────────────────────────────
+              const Text('Ubicación en el mapa',
+                  style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.textPrimary)),
+              const SizedBox(height: 4),
+              const Text('Toca el mapa para marcar el punto exacto.',
+                  style: TextStyle(fontSize: 12, color: AppColors.textTertiary)),
+              const SizedBox(height: 8),
+              Container(
+                height: 250,
+                clipBehavior: Clip.antiAlias,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: AppColors.border, width: 0.5),
+                ),
+                child: FlutterMap(
+                  mapController: _mapController,
+                  options: MapOptions(
+                    initialCenter: _markerLatLng,
+                    initialZoom: 13,
+                    onTap: (tapPosition, point) {
+                      setState(() => _markerLatLng = point);
+                    },
+                  ),
+                  children: [
+                    TileLayer(
+                      urlTemplate:
+                          'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                      userAgentPackageName: 'com.gymflow.app',
+                    ),
+                    MarkerLayer(
+                      markers: [
+                        Marker(
+                          point: _markerLatLng,
+                          width: 40,
+                          height: 40,
+                          alignment: Alignment.topCenter,
+                          child: const Icon(Icons.location_on,
+                              color: AppColors.primary, size: 40),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                'Lat: ${_markerLatLng.latitude.toStringAsFixed(5)}, '
+                'Lng: ${_markerLatLng.longitude.toStringAsFixed(5)}',
+                style: const TextStyle(
+                    fontSize: 12, color: AppColors.textTertiary),
               ),
               const SizedBox(height: 16),
 

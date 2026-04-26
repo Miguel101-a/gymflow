@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_map/flutter_map.dart';
+import 'package:latlong2/latlong.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../theme/app_colors.dart';
 import '../../utils/refresh_notifier.dart';
@@ -462,6 +464,56 @@ class _ClassDetailScreenState extends State<ClassDetailScreen> {
                   const SizedBox(height: 12),
                   _buildScheduleItem(Icons.calendar_today, dateStr, '$startTimeStr - $endTimeStr'),
                   _buildScheduleItem(Icons.location_on_outlined, ubicacion, 'Gimnasio'),
+                  if (classData['latitud'] != null && classData['longitud'] != null) ...[
+                    const SizedBox(height: 12),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 20),
+                      child: Container(
+                        height: 180,
+                        clipBehavior: Clip.antiAlias,
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: AppColors.border, width: 0.5),
+                        ),
+                        child: Builder(builder: (_) {
+                          final point = LatLng(
+                            (classData['latitud'] as num).toDouble(),
+                            (classData['longitud'] as num).toDouble(),
+                          );
+                          return FlutterMap(
+                            options: MapOptions(
+                              initialCenter: point,
+                              initialZoom: 15,
+                              interactionOptions: const InteractionOptions(
+                                flags: InteractiveFlag.pinchZoom |
+                                    InteractiveFlag.drag |
+                                    InteractiveFlag.doubleTapZoom,
+                              ),
+                            ),
+                            children: [
+                              TileLayer(
+                                urlTemplate:
+                                    'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                                userAgentPackageName: 'com.gymflow.app',
+                              ),
+                              MarkerLayer(
+                                markers: [
+                                  Marker(
+                                    point: point,
+                                    width: 40,
+                                    height: 40,
+                                    alignment: Alignment.topCenter,
+                                    child: const Icon(Icons.location_on,
+                                        color: AppColors.primary, size: 40),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          );
+                        }),
+                      ),
+                    ),
+                  ],
                   const SizedBox(height: 100),
                 ],
               ),

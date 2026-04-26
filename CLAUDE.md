@@ -40,18 +40,34 @@ Project URL and anon key are hard-coded in `lib/main.dart`. There is no `.env`. 
 
 Schema cheat-sheet (only the parts that bite):
 
-- `perfiles` — 1:1 with `auth.users`. Columns to know: `rol` (cliente/admin/instructor), `permisos` (JSONB), `avatar_url`, plus role-specific fields (`peso/talla/edad` for cliente, `especialidad/rating` for instructor, `rango/sede_staff/antiguedad` for admin), `notificaciones_activas`.
-- `clases` — has `cancelada bool` + `cancelada_at`. Cancellation does NOT delete; it sets the flag and `activa=false`.
+- `perfiles` — 1:1 with `auth.users`. Columns to know: `rol` (CHECK `IN ('cliente','admin','instructor')`), `permisos` (JSONB, default `'{}'` — new cliente has NO permissions until set), `avatar_url`, plus role-specific fields (`peso/talla/edad` for cliente, `especialidad/rating` for instructor, `rango/sede_staff/antiguedad` for admin), `notificaciones_activas`.
+- `clases` — has `cancelada bool` + `cancelada_at`. Cancellation does NOT delete; it sets the flag and `activa=false`. CHECK `nivel IN ('principiante','intermedio','avanzado','todos')`. Has `latitud`/`longitud numeric` for GPS map. FK `instructor_id → perfiles.id`.
 - `comunicaciones` — used as the notifications table for clients. **Two CHECK constraints will silently break inserts if violated:**
   - `tipo IN ('general', 'cambio_horario', 'cancelacion')`
   - `grupo_destinatario IN ('todos', 'profesores', 'clase_especifica')`
   - `autor_id` is `NOT NULL` — every insert must include `auth.currentUser.id`.
-- `reservas` — `estado IN ('confirmada', 'lista_de_espera', 'cancelada', 'completada')`.
-- `configuracion_gimnasio` — singleton row (`id=1`, CHECK enforces it).
+- `reservas` — `estado IN ('confirmada', 'lista_de_espera', 'cancelada', 'completada')`. FK `usuario_id → perfiles.id`, `clase_id → clases.id`.
+- `estudiantes` — Class enrollments. FK `perfil_id → perfiles.id`, `clase_id → clases.id`. CHECK `estado IN ('activo','inactivo','suspendido','confirmada','lista_de_espera')` — **the code uses `'confirmada'/'lista_de_espera'`** (same as `reservas`), not the employment-style states. `codigo_estudiante` is UNIQUE nullable. Inserted alongside `reservas` when a client books a class (see `class_detail_screen.dart`).
+- `pagos` — Payment records. FK `usuario_id → perfiles.id`, `reserva_id → reservas.id` (nullable). CHECKs: `estado IN ('pendiente','pagado','vencido','cancelado')` and `metodo_pago IN ('efectivo','transferencia','tarjeta')`. Currency default `'BOB'`.
+- `configuracion_gimnasio` — singleton row (`id=1`, CHECK enforces it). Defaults: `horario_apertura='07:00'`, `horario_cierre='23:30'`, `capacidad_maxima_default=20`, `nombre_gimnasio='GymFlow'`. No FKs — it's global config, that's expected.
 
 RLS is enabled on every table. Admin actions need both per-row policies (e.g. `perfiles_update_own`) AND admin policies (e.g. `perfiles_update_admin`). When a Supabase `update` returns success but nothing changed, suspect a missing admin policy — see "RLS detection" below.
 
-Storage bucket `avatars` is public-read, write-restricted to the user's own folder (`avatars/{user_id}/...`).
+### Storage buckets
+
+- **`avatars`** (public) — policies: `avatars_read_public` (SELECT), `avatars_insert_own`, `avatars_update_own`, `avatars_delete_own`. Path convention: `avatars/{user_id}/...`.
+- **`class-images`** (public) — used by `class_form_screen.dart` for class images. Policies: public SELECT + authenticated INSERT. **This is the active bucket — use this in new code.**
+- ⚠️ **`clases-imagenes`** (public, **no policies**) — orphaned bucket, not used anywhere. Candidate for deletion via Supabase Dashboard → Storage. Do NOT use in new code.
+
+### RLS policies inventory
+
+Cheat-sheet of which policies exist, so you can quickly diagnose "update succeeds but nothing changes" type bugs:
+
+- **`clases`**: `clases_select_authenticated`, `clases_insert_admin`, `clases_insert_instructor`, `clases_update_admin`, `clases_delete_admin`, `clases_delete_instructor`. **Missing**: `clases_update_instructor` — if an instructor with `puede_editar_clases` permission can't update a class, this is why.
+- **`reservas`**: `reservas_select_own`, `reservas_select_admin`, `reservas_select_instructor`, `reservas_insert_own`, `reservas_update_own`, `reservas_update_admin`, `reservas_delete_own`. **Missing**: `reservas_update_instructor` (instructors can't directly mark reservations as `completada`/`cancelada` — must go through admin or the client themselves).
+- **`perfiles`**: `perfiles_update_own` + `perfiles_update_admin` (and analogous SELECT/INSERT policies).
+
+When something "saves" but nothing changes for an instructor or admin, consult this inventory first before debugging the code.
 
 ## Architecture
 

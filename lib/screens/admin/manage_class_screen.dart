@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../theme/app_colors.dart';
 import '../../utils/refresh_notifier.dart';
+import '../../utils/permissions.dart';
 
 class ManageClassScreen extends StatefulWidget {
   const ManageClassScreen({super.key});
@@ -14,11 +15,26 @@ class _ManageClassScreenState extends State<ManageClassScreen> {
   final _supabase = Supabase.instance.client;
   List<dynamic> _classes = [];
   bool _isLoading = true;
+  bool _canCreate = false;
+  bool _canEdit = false;
+  bool _canCancel = false;
 
   @override
   void initState() {
     super.initState();
-    _fetchClasses();
+    _loadPermissionsAndClasses();
+  }
+
+  Future<void> _loadPermissionsAndClasses() async {
+    final perms = await Permissions.load();
+    if (mounted) {
+      setState(() {
+        _canCreate = perms[Permissions.crearClases] ?? false;
+        _canEdit = perms[Permissions.editarClases] ?? false;
+        _canCancel = perms[Permissions.cancelarClases] ?? false;
+      });
+    }
+    await _fetchClasses();
   }
 
   Future<void> _fetchClasses() async {
@@ -171,14 +187,16 @@ class _ManageClassScreenState extends State<ManageClassScreen> {
                                           }
                                         },
                                         itemBuilder: (context) => [
-                                          PopupMenuItem(
-                                            value: 'toggle',
-                                            child: Text(activa ? 'Desactivar' : 'Activar'),
-                                          ),
-                                          const PopupMenuItem(
-                                            value: 'edit',
-                                            child: Text('Editar'),
-                                          ),
+                                          if (_canCancel)
+                                            PopupMenuItem(
+                                              value: 'toggle',
+                                              child: Text(activa ? 'Desactivar' : 'Activar'),
+                                            ),
+                                          if (_canEdit)
+                                            const PopupMenuItem(
+                                              value: 'edit',
+                                              child: Text('Editar'),
+                                            ),
                                           const PopupMenuItem(
                                             value: 'delete',
                                             child: Text('Eliminar', style: TextStyle(color: AppColors.error)),
@@ -238,17 +256,19 @@ class _ManageClassScreenState extends State<ManageClassScreen> {
           ],
         ),
       ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () async {
-          final result = await Navigator.pushNamed(context, '/admin/class_form');
-          if (result == true) {
-            RefreshNotifier.notifyAdmin();
-            _fetchClasses();
-          }
-        },
-        backgroundColor: AppColors.primary,
-        child: const Icon(Icons.add, color: AppColors.white),
-      ),
+      floatingActionButton: _canCreate
+          ? FloatingActionButton(
+              onPressed: () async {
+                final result = await Navigator.pushNamed(context, '/admin/class_form');
+                if (result == true) {
+                  RefreshNotifier.notifyAdmin();
+                  _fetchClasses();
+                }
+              },
+              backgroundColor: AppColors.primary,
+              child: const Icon(Icons.add, color: AppColors.white),
+            )
+          : null,
     );
   }
 }

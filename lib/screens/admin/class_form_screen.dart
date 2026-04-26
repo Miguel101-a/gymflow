@@ -653,7 +653,7 @@ class _ClassFormScreenState extends State<ClassFormScreen> {
               ),
               const SizedBox(height: 8),
               Container(
-                height: 250,
+                height: 320,
                 clipBehavior: Clip.antiAlias,
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(12),

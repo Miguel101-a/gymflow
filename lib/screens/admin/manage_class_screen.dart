@@ -73,6 +73,83 @@ class _ManageClassScreenState extends State<ManageClassScreen> {
     }
   }
 
+  Future<void> _cancelClass(String classId, String className) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Cancelar Clase'),
+        content: Text(
+            '¿Cancelar la clase "$className"? Se notificará a todos los alumnos con reserva activa.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('No')),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Sí, cancelar', style: TextStyle(color: AppColors.error)),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+
+    try {
+      final now = DateTime.now().toIso8601String();
+      await _supabase.from('clases').update({
+        'cancelada': true,
+        'cancelada_at': now,
+        'activa': false,
+        'updated_at': now,
+      }).eq('id', classId);
+
+      final reservas = await _supabase
+          .from('reservas')
+          .select('usuario_id, perfiles(notificaciones_activas)')
+          .eq('clase_id', classId)
+          .eq('estado', 'confirmada');
+
+      final notifs = <Map<String, dynamic>>[];
+      for (final r in reservas) {
+        final p = r['perfiles'];
+        final activas = (p is Map && p['notificaciones_activas'] != null)
+            ? p['notificaciones_activas'] == true
+            : true;
+        if (activas && r['usuario_id'] != null) {
+          notifs.add({
+            'usuario_id': r['usuario_id'],
+            'clase_id': classId,
+            'tipo': 'cancelacion',
+            'asunto': 'Clase cancelada',
+            'contenido':
+                'La clase $className ha sido cancelada. Revisa el calendario para más información.',
+            'grupo_destinatario': 'clientes',
+          });
+        }
+      }
+
+      if (notifs.isNotEmpty) {
+        await _supabase.from('comunicaciones').insert(notifs);
+      }
+
+      RefreshNotifier.notifyAdmin();
+      RefreshNotifier.notifyClient();
+      _fetchClasses();
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Clase cancelada (${notifs.length} notificación(es) enviada(s))'),
+            backgroundColor: AppColors.success,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error: $e'), backgroundColor: AppColors.error),
+        );
+      }
+    }
+  }
+
   Future<void> _deleteClass(String classId) async {
     final confirmed = await showDialog<bool>(
       context: context,
@@ -149,6 +226,7 @@ class _ManageClassScreenState extends State<ManageClassScreen> {
                             final horaFin = cl['hora_fin']?.toString() ?? '';
                             final capacidadMaxima = cl['capacidad_maxima'] ?? 0;
                             final activa = cl['activa'] ?? false;
+                            final cancelada = cl['cancelada'] == true;
                             final ubicacion = cl['ubicacion'] ?? 'N/A';
 
                             return Container(
@@ -184,15 +262,26 @@ class _ManageClassScreenState extends State<ManageClassScreen> {
                                             _deleteClass(cl['id'].toString());
                                           } else if (value == 'toggle') {
                                             _toggleActive(cl['id'].toString(), activa);
+                                          } else if (value == 'cancel') {
+                                            _cancelClass(cl['id'].toString(), cl['nombre']?.toString() ?? 'Sin nombre');
                                           }
                                         },
                                         itemBuilder: (context) => [
-                                          if (_canCancel)
+                                          if (_canCancel && !cancelada)
+                                            const PopupMenuItem(
+                                              value: 'cancel',
+                                              child: Row(children: [
+                                                Icon(Icons.event_busy, size: 18, color: AppColors.error),
+                                                SizedBox(width: 8),
+                                                Text('Cancelar clase', style: TextStyle(color: AppColors.error)),
+                                              ]),
+                                            ),
+                                          if (_canCancel && !cancelada)
                                             PopupMenuItem(
                                               value: 'toggle',
                                               child: Text(activa ? 'Desactivar' : 'Activar'),
                                             ),
-                                          if (_canEdit)
+                                          if (_canEdit && !cancelada)
                                             const PopupMenuItem(
                                               value: 'edit',
                                               child: Text('Editar'),
@@ -235,15 +324,23 @@ class _ManageClassScreenState extends State<ManageClassScreen> {
                                   Container(
                                     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                                     decoration: BoxDecoration(
-                                      color: activa ? AppColors.success.withValues(alpha: 0.1) : AppColors.error.withValues(alpha: 0.1),
+                                      color: cancelada
+                                          ? AppColors.error.withValues(alpha: 0.15)
+                                          : (activa
+                                              ? AppColors.success.withValues(alpha: 0.1)
+                                              : AppColors.textTertiary.withValues(alpha: 0.15)),
                                       borderRadius: BorderRadius.circular(6),
                                     ),
                                     child: Text(
-                                      activa ? 'ACTIVA' : 'INACTIVA',
+                                      cancelada
+                                          ? 'CANCELADA'
+                                          : (activa ? 'ACTIVA' : 'INACTIVA'),
                                       style: TextStyle(
                                         fontSize: 11,
                                         fontWeight: FontWeight.w700,
-                                        color: activa ? AppColors.success : AppColors.error,
+                                        color: cancelada
+                                            ? AppColors.error
+                                            : (activa ? AppColors.success : AppColors.textTertiary),
                                       ),
                                     ),
                                   ),

@@ -469,7 +469,7 @@ class _ClassDetailScreenState extends State<ClassDetailScreen> {
                     Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 20),
                       child: Container(
-                        height: 180,
+                        height: 320,
                         clipBehavior: Clip.antiAlias,
                         decoration: BoxDecoration(
                           borderRadius: BorderRadius.circular(12),

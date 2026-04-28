@@ -70,12 +70,25 @@ class _InstructorClassesScreenState extends State<InstructorClassesScreen> {
     try {
       final currentUser = _supabase.auth.currentUser;
       final now = DateTime.now().toIso8601String();
-      await _supabase.from('clases').update({
+      final updated = await _supabase.from('clases').update({
         'cancelada': true,
         'cancelada_at': now,
         'activa': false,
         'updated_at': now,
-      }).eq('id', classId);
+      }).eq('id', classId).select('id').maybeSingle();
+
+      if (updated == null) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text(
+                  'No se pudo cancelar: tu cuenta no tiene permisos en Supabase para actualizar clases. Contacta al admin.'),
+              backgroundColor: AppColors.error,
+            ),
+          );
+        }
+        return;
+      }
 
       final reservas = await _supabase
           .from('reservas')

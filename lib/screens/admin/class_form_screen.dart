@@ -347,6 +347,77 @@ class _ClassFormScreenState extends State<ClassFormScreen> {
     }
   }
 
+  Future<void> _askToNotifyClients(Map<String, dynamic> classData) async {
+    final accept = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Row(
+          children: [
+            Icon(Icons.campaign, color: AppColors.primary),
+            SizedBox(width: 8),
+            Expanded(child: Text('Notificar a los clientes')),
+          ],
+        ),
+        content: const Text(
+          '¿Quieres enviar una notificación a todos los clientes para invitarlos a inscribirse a esta nueva clase?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Ahora no'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary),
+            child: const Text('Enviar notificación',
+                style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+
+    if (accept != true) return;
+    final user = _supabase.auth.currentUser;
+    if (user == null) return;
+
+    try {
+      final nombre = classData['nombre'] ?? 'Nueva clase';
+      final fecha = classData['fecha'] ?? '';
+      final horaInicio = classData['hora_inicio'] ?? '';
+      final ubicacion = classData['ubicacion'] ?? '';
+      final contenido =
+          '¡Nueva clase disponible! "$nombre" — $fecha a las $horaInicio'
+          '${ubicacion.toString().isNotEmpty ? ' en $ubicacion' : ''}.'
+          ' ¡Inscríbete y reserva tu lugar!';
+
+      await _supabase.from('comunicaciones').insert({
+        'asunto': 'Nueva clase: $nombre',
+        'contenido': contenido,
+        'autor_id': user.id,
+        'grupo_destinatario': 'todos',
+        'tipo': 'clase_creada',
+      });
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Notificación enviada a los clientes'),
+            backgroundColor: AppColors.success,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('No se pudo enviar la notificación: $e'),
+            backgroundColor: AppColors.error,
+          ),
+        );
+      }
+    }
+  }
+
   Future<void> _saveClass() async {
     if (!_formKey.currentState!.validate() || _selectedInstructorId == null) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -395,7 +466,8 @@ class _ClassFormScreenState extends State<ClassFormScreen> {
         'longitud': _markerLatLng.longitude,
       };
 
-      if (widget.classData == null) {
+      final isNewClass = widget.classData == null;
+      if (isNewClass) {
         await _supabase.from('clases').insert(classData);
       } else {
         classData['updated_at'] = DateTime.now().toIso8601String();
@@ -411,7 +483,12 @@ class _ClassFormScreenState extends State<ClassFormScreen> {
               content: Text('Clase guardada exitosamente'),
               backgroundColor: AppColors.success),
         );
-        Navigator.pop(context, true);
+
+        if (isNewClass) {
+          await _askToNotifyClients(classData);
+        }
+
+        if (mounted) Navigator.pop(context, true);
       }
     } catch (e) {
       if (mounted) {

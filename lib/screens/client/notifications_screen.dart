@@ -31,7 +31,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
       final notifications = await _supabase
           .from('comunicaciones')
           .select()
-          .or('usuario_id.eq.${user.id},and(usuario_id.is.null,grupo_destinatario.in.(todos,clientes))')
+          .or('usuario_id.eq.${user.id},and(usuario_id.is.null,grupo_destinatario.eq.todos)')
           .order('created_at', ascending: false);
 
       if (mounted) {

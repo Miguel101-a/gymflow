@@ -73,6 +73,7 @@ class _StudentManagementScreenState extends State<StudentManagementScreen> {
     final formKey = GlobalKey<FormState>();
     bool isCreating = false;
     bool obscurePass = true;
+    bool sendConfirmationEmail = false;
 
     showDialog(
       context: context,
@@ -163,21 +164,42 @@ class _StudentManagementScreenState extends State<StudentManagementScreen> {
                     },
                   ),
                   const SizedBox(height: 8),
+                  CheckboxListTile(
+                    value: sendConfirmationEmail,
+                    onChanged: (v) =>
+                        setDialog(() => sendConfirmationEmail = v ?? false),
+                    title: const Text(
+                      'Enviar email de confirmación al cliente',
+                      style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+                    ),
+                    subtitle: Text(
+                      sendConfirmationEmail
+                          ? 'El cliente recibirá un correo y deberá confirmar antes de iniciar sesión.'
+                          : 'La cuenta quedará lista para usar inmediatamente (sin email).',
+                      style: const TextStyle(fontSize: 11),
+                    ),
+                    controlAffinity: ListTileControlAffinity.leading,
+                    contentPadding: EdgeInsets.zero,
+                    dense: true,
+                  ),
+                  const SizedBox(height: 4),
                   Container(
                     padding: const EdgeInsets.all(8),
                     decoration: BoxDecoration(
                       color: AppColors.chipBackground,
                       borderRadius: BorderRadius.circular(8),
                     ),
-                    child: const Row(
+                    child: Row(
                       children: [
-                        Icon(Icons.info_outline,
+                        const Icon(Icons.info_outline,
                             size: 16, color: AppColors.primary),
-                        SizedBox(width: 6),
+                        const SizedBox(width: 6),
                         Expanded(
                           child: Text(
-                            'El cliente podrá iniciar sesión con estos datos.',
-                            style: TextStyle(
+                            sendConfirmationEmail
+                                ? 'Pasa las credenciales al cliente y pídele que confirme su correo.'
+                                : 'Entrega las credenciales al cliente; podrá iniciar sesión de inmediato.',
+                            style: const TextStyle(
                                 fontSize: 11, color: AppColors.primary),
                           ),
                         ),
@@ -204,6 +226,7 @@ class _StudentManagementScreenState extends State<StudentManagementScreen> {
                         email: emailCtrl.text.trim(),
                         phone: phoneCtrl.text.trim(),
                         password: passCtrl.text,
+                        sendConfirmationEmail: sendConfirmationEmail,
                       );
                       if (!mounted) return;
                       if (ok) {
@@ -229,9 +252,28 @@ class _StudentManagementScreenState extends State<StudentManagementScreen> {
     );
   }
 
-  /// Crea la cuenta usando una instancia temporal de SupabaseClient para que
-  /// la sesión del admin actual no se vea afectada.
+  /// Crea cuenta de cliente. Si [sendConfirmationEmail] es true, usa el flujo
+  /// estándar de signUp() (el cliente recibe email de confirmación). Si es
+  /// false, invoca la función RPC `admin_create_client_confirmed` que crea la
+  /// cuenta ya confirmada (solo admin puede ejecutarla).
   Future<bool> _createStudentAccount({
+    required String name,
+    required String email,
+    required String phone,
+    required String password,
+    required bool sendConfirmationEmail,
+  }) async {
+    if (sendConfirmationEmail) {
+      return _createWithConfirmationEmail(
+          name: name, email: email, phone: phone, password: password);
+    }
+    return _createAutoConfirmed(
+        name: name, email: email, phone: phone, password: password);
+  }
+
+  /// Flujo con email de confirmación: usa una instancia temporal de
+  /// SupabaseClient para no afectar la sesión del admin.
+  Future<bool> _createWithConfirmationEmail({
     required String name,
     required String email,
     required String phone,
@@ -259,8 +301,6 @@ class _StudentManagementScreenState extends State<StudentManagementScreen> {
         return false;
       }
 
-      // Upsert del perfil con datos completos. Si un trigger ya creó el perfil
-      // con valores por defecto, este upsert los completa.
       try {
         await tempClient.from('perfiles').upsert({
           'id': newUser.id,
@@ -270,8 +310,6 @@ class _StudentManagementScreenState extends State<StudentManagementScreen> {
           'rol': 'cliente',
         });
       } catch (_) {
-        // Si la inserción del perfil falla por RLS, intentamos al menos
-        // actualizar desde la sesión admin global.
         try {
           await _supabase.from('perfiles').upsert({
             'id': newUser.id,
@@ -286,7 +324,7 @@ class _StudentManagementScreenState extends State<StudentManagementScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Cuenta creada para $name'),
+            content: Text('Email de confirmación enviado a $email'),
             backgroundColor: AppColors.success,
           ),
         );
@@ -316,6 +354,55 @@ class _StudentManagementScreenState extends State<StudentManagementScreen> {
       try {
         await tempClient?.dispose();
       } catch (_) {}
+    }
+  }
+
+  /// Flujo auto-confirmado: invoca la función RPC SECURITY DEFINER que crea
+  /// el usuario en auth.users con email_confirmed_at ya seteado. Solo admins
+  /// pueden invocarla (la función valida el rol del invocador).
+  Future<bool> _createAutoConfirmed({
+    required String name,
+    required String email,
+    required String phone,
+    required String password,
+  }) async {
+    try {
+      await _supabase.rpc('admin_create_client_confirmed', params: {
+        'p_email': email,
+        'p_password': password,
+        'p_nombre_completo': name,
+        'p_telefono': phone.isEmpty ? null : phone,
+      });
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Cuenta lista para $name. Ya puede iniciar sesión.'),
+            backgroundColor: AppColors.success,
+          ),
+        );
+      }
+      return true;
+    } on PostgrestException catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error: ${e.message}'),
+            backgroundColor: AppColors.error,
+          ),
+        );
+      }
+      return false;
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error al crear cuenta: $e'),
+            backgroundColor: AppColors.error,
+          ),
+        );
+      }
+      return false;
     }
   }
 

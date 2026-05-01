@@ -3,7 +3,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../theme/app_colors.dart';
 import '../../utils/refresh_notifier.dart';
 
-enum _CommFilter { todos, noLeidos, importantes, archivados }
+enum _CommFilter { todos, noLeidos, leidos, importantes, archivados }
 
 class CommunicationsScreen extends StatefulWidget {
   const CommunicationsScreen({super.key});
@@ -81,6 +81,8 @@ class _CommunicationsScreenState extends State<CommunicationsScreen> {
           return c['archivada'] != true;
         case _CommFilter.noLeidos:
           return c['leida'] != true && c['archivada'] != true;
+        case _CommFilter.leidos:
+          return c['leida'] == true && c['archivada'] != true;
         case _CommFilter.importantes:
           return c['importante'] == true && c['archivada'] != true;
         case _CommFilter.archivados:
@@ -308,6 +310,8 @@ class _CommunicationsScreenState extends State<CommunicationsScreen> {
           return c['archivada'] != true;
         case _CommFilter.noLeidos:
           return c['leida'] != true && c['archivada'] != true;
+        case _CommFilter.leidos:
+          return c['leida'] == true && c['archivada'] != true;
         case _CommFilter.importantes:
           return c['importante'] == true && c['archivada'] != true;
         case _CommFilter.archivados:
@@ -346,6 +350,7 @@ class _CommunicationsScreenState extends State<CommunicationsScreen> {
                   children: [
                     _buildFilterChip(_CommFilter.todos, 'Todos'),
                     _buildFilterChip(_CommFilter.noLeidos, 'No leídos'),
+                    _buildFilterChip(_CommFilter.leidos, 'Leídos'),
                     _buildFilterChip(_CommFilter.importantes, 'Importantes'),
                     _buildFilterChip(_CommFilter.archivados, 'Archivados'),
                   ],
@@ -507,7 +512,13 @@ class _CommunicationsScreenState extends State<CommunicationsScreen> {
             Text(
               _filter == _CommFilter.archivados
                   ? 'No hay mensajes archivados'
-                  : 'No hay mensajes',
+                  : _filter == _CommFilter.leidos
+                      ? 'No hay mensajes leídos'
+                      : _filter == _CommFilter.noLeidos
+                          ? 'No hay mensajes sin leer'
+                          : _filter == _CommFilter.importantes
+                              ? 'No hay mensajes importantes'
+                              : 'No hay mensajes',
               style: const TextStyle(fontSize: 16, color: AppColors.textSecondary),
             ),
           ],

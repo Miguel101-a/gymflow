@@ -383,7 +383,11 @@ class _CalendarScreenState extends State<CalendarScreen> {
   Widget _buildCalendarView() {
     final startOfWeek =
         _selectedDate.subtract(Duration(days: _selectedDate.weekday - 1));
+    final hasSearch = _searchQuery.trim().isNotEmpty;
     final dayClasses = _classesForDay(_selectedDate);
+    final searchResults = hasSearch
+        ? _filteredClasses
+        : const <Map<String, dynamic>>[];
 
     return Column(
       children: [
@@ -486,12 +490,16 @@ class _CalendarScreenState extends State<CalendarScreen> {
           child: Row(
             children: [
               Text(
-                'Clases para ${_selectedDate.day} ${_months[_selectedDate.month - 1]}',
+                hasSearch
+                    ? 'Resultados para "${_searchQuery.trim()}"'
+                    : 'Clases para ${_selectedDate.day} ${_months[_selectedDate.month - 1]}',
                 style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
               ),
               const Spacer(),
               Text(
-                '${dayClasses.length} clases',
+                hasSearch
+                    ? '${searchResults.length} clases'
+                    : '${dayClasses.length} clases',
                 style: const TextStyle(
                     fontSize: 14, color: AppColors.textSecondary),
               ),
@@ -499,17 +507,22 @@ class _CalendarScreenState extends State<CalendarScreen> {
           ),
         ),
         Expanded(
-          child: dayClasses.isEmpty
-              ? _buildEmptyState('No hay clases para este día')
-              : RefreshIndicator(
-                  onRefresh: _fetchAllClasses,
-                  child: ListView.builder(
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    itemCount: dayClasses.length,
-                    itemBuilder: (context, index) =>
-                        _buildClassCard(dayClasses[index]),
-                  ),
-                ),
+          child: hasSearch
+              ? (searchResults.isEmpty
+                  ? _buildEmptyState(
+                      'Sin resultados para "${_searchQuery.trim()}"')
+                  : _buildGroupedList(searchResults))
+              : (dayClasses.isEmpty
+                  ? _buildEmptyState('No hay clases para este día')
+                  : RefreshIndicator(
+                      onRefresh: _fetchAllClasses,
+                      child: ListView.builder(
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        itemCount: dayClasses.length,
+                        itemBuilder: (context, index) =>
+                            _buildClassCard(dayClasses[index]),
+                      ),
+                    )),
         ),
       ],
     );
@@ -524,7 +537,10 @@ class _CalendarScreenState extends State<CalendarScreen> {
             : 'No hay clases en este rango',
       );
     }
+    return _buildGroupedList(classes);
+  }
 
+  Widget _buildGroupedList(List<Map<String, dynamic>> classes) {
     final groups = <DateTime, List<Map<String, dynamic>>>{};
     for (final cl in classes) {
       final fecha = _parseClassDate(cl);

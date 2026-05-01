@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../theme/app_colors.dart';
+import '../../utils/refresh_notifier.dart';
 
 class NotificationsScreen extends StatefulWidget {
   const NotificationsScreen({super.key});
@@ -18,6 +19,17 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   void initState() {
     super.initState();
     _fetchNotifications();
+    RefreshNotifier.clientRefresh.addListener(_onRefresh);
+  }
+
+  @override
+  void dispose() {
+    RefreshNotifier.clientRefresh.removeListener(_onRefresh);
+    super.dispose();
+  }
+
+  void _onRefresh() {
+    if (mounted) _fetchNotifications();
   }
 
   Future<void> _fetchNotifications() async {

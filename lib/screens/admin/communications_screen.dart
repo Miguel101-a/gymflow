@@ -105,6 +105,8 @@ class _CommunicationsScreenState extends State<CommunicationsScreen> {
     final next = !(comm['importante'] == true);
     try {
       await _supabase.from('comunicaciones').update({'importante': next}).eq('id', id);
+      RefreshNotifier.notifyClient();
+      RefreshNotifier.notifyInstructor();
       _fetchCommunications();
     } catch (e) {
       _showError('No se pudo actualizar: $e');
@@ -116,6 +118,8 @@ class _CommunicationsScreenState extends State<CommunicationsScreen> {
     final next = !(comm['archivada'] == true);
     try {
       await _supabase.from('comunicaciones').update({'archivada': next}).eq('id', id);
+      RefreshNotifier.notifyClient();
+      RefreshNotifier.notifyInstructor();
       _fetchCommunications();
     } catch (e) {
       _showError('No se pudo actualizar: $e');
@@ -150,6 +154,8 @@ class _CommunicationsScreenState extends State<CommunicationsScreen> {
       try {
         await _supabase.from('comunicaciones').delete().eq('id', id);
         RefreshNotifier.notifyAdmin();
+        RefreshNotifier.notifyClient();
+        RefreshNotifier.notifyInstructor();
         _fetchCommunications();
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -160,6 +166,110 @@ class _CommunicationsScreenState extends State<CommunicationsScreen> {
         _showError('Error al eliminar: $e');
       }
     }
+  }
+
+  void _showEditDialog(Map<String, dynamic> comm) {
+    final asuntoController =
+        TextEditingController(text: comm['asunto']?.toString() ?? '');
+    final contenidoController =
+        TextEditingController(text: comm['contenido']?.toString() ?? '');
+    final formKey = GlobalKey<FormState>();
+    bool marcarImportante = comm['importante'] == true;
+
+    showDialog(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: const Text('Editar Mensaje'),
+          content: Form(
+            key: formKey,
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  TextFormField(
+                    controller: asuntoController,
+                    decoration: const InputDecoration(labelText: 'Asunto'),
+                    validator: (v) => v!.isEmpty ? 'Requerido' : null,
+                  ),
+                  const SizedBox(height: 16),
+                  TextFormField(
+                    controller: contenidoController,
+                    maxLines: 4,
+                    decoration:
+                        const InputDecoration(labelText: 'Contenido del Mensaje'),
+                    validator: (v) => v!.isEmpty ? 'Requerido' : null,
+                  ),
+                  const SizedBox(height: 8),
+                  CheckboxListTile(
+                    value: marcarImportante,
+                    onChanged: (v) =>
+                        setDialogState(() => marcarImportante = v ?? false),
+                    title: const Text('Marcar como importante',
+                        style: TextStyle(fontSize: 13)),
+                    controlAffinity: ListTileControlAffinity.leading,
+                    contentPadding: EdgeInsets.zero,
+                    dense: true,
+                  ),
+                ],
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('Cancelar')),
+            ElevatedButton(
+              onPressed: () async {
+                if (!formKey.currentState!.validate()) return;
+                try {
+                  final updated = await _supabase
+                      .from('comunicaciones')
+                      .update({
+                        'asunto': asuntoController.text,
+                        'contenido': contenidoController.text,
+                        'importante': marcarImportante,
+                      })
+                      .eq('id', comm['id'])
+                      .select('id')
+                      .maybeSingle();
+
+                  if (!context.mounted) return;
+
+                  if (updated == null) {
+                    Navigator.pop(context);
+                    _showError(
+                        'No tenés permisos para editar este mensaje (RLS)');
+                    return;
+                  }
+
+                  RefreshNotifier.notifyAdmin();
+                  RefreshNotifier.notifyClient();
+                  RefreshNotifier.notifyInstructor();
+                  Navigator.pop(context);
+                  _fetchCommunications();
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                        content: Text('Mensaje actualizado'),
+                        backgroundColor: AppColors.success),
+                  );
+                } catch (e) {
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                          content: Text('Error: $e'),
+                          backgroundColor: AppColors.error),
+                    );
+                  }
+                }
+              },
+              style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary),
+              child: const Text('Guardar', style: TextStyle(color: Colors.white)),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   void _showError(String msg) {
@@ -614,6 +724,16 @@ class _CommunicationsScreenState extends State<CommunicationsScreen> {
                   ),
                   tooltip: isImportante ? 'Quitar importante' : 'Marcar importante',
                   onPressed: () => _toggleImportant(comm),
+                ),
+                IconButton(
+                  iconSize: 20,
+                  visualDensity: VisualDensity.compact,
+                  padding: const EdgeInsets.symmetric(horizontal: 4),
+                  constraints: const BoxConstraints(),
+                  icon: const Icon(Icons.edit_outlined,
+                      color: AppColors.textSecondary),
+                  tooltip: 'Editar',
+                  onPressed: () => _showEditDialog(comm),
                 ),
                 IconButton(
                   iconSize: 20,

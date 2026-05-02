@@ -382,7 +382,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                 ? AppColors.error
                                 : AppColors.warning;
                         return _buildBookingItem(
-                            className, '$fecha • $horaInicio', '\$$precio', estado, statusColor);
+                            className, '$fecha • $horaInicio', 'Bs $precio', estado, statusColor);
                       }).toList(),
                     ),
               const SizedBox(height: 28),

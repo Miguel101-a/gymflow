@@ -9,6 +9,7 @@ import 'package:latlong2/latlong.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../theme/app_colors.dart';
 import '../../utils/permissions.dart';
+import '../../utils/refresh_notifier.dart';
 
 class ClassFormScreen extends StatefulWidget {
   final Map<String, dynamic>? classData;
@@ -476,6 +477,10 @@ class _ClassFormScreenState extends State<ClassFormScreen> {
             .update(classData)
             .eq('id', widget.classData!['id']);
       }
+
+      RefreshNotifier.notifyAdmin();
+      RefreshNotifier.notifyClient();
+      RefreshNotifier.notifyInstructor();
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(

@@ -18,20 +18,53 @@ class _ClassDetailScreenState extends State<ClassDetailScreen> {
   final _supabase = Supabase.instance.client;
   bool _isLoading = false;
   String _instructorName = 'Cargando...';
+  late Map<String, dynamic> _currentClass;
 
   @override
   void initState() {
     super.initState();
+    _currentClass = Map<String, dynamic>.from(widget.classData);
     _resolveInstructor();
+    _refreshClass();
+    RefreshNotifier.clientRefresh.addListener(_refreshClass);
+  }
+
+  @override
+  void dispose() {
+    RefreshNotifier.clientRefresh.removeListener(_refreshClass);
+    super.dispose();
+  }
+
+  Future<void> _refreshClass() async {
+    final id = _currentClass['id'];
+    if (id == null) return;
+    try {
+      final data = await _supabase
+          .from('clases')
+          .select('*, instructor:perfiles(nombre_completo)')
+          .eq('id', id)
+          .maybeSingle();
+      if (data != null && mounted) {
+        setState(() => _currentClass = Map<String, dynamic>.from(data));
+        _resolveInstructor();
+      }
+    } catch (_) {}
+  }
+
+  String _formatPrice(dynamic value) {
+    if (value == null) return 'Gratis';
+    final num? n = value is num ? value : num.tryParse(value.toString());
+    if (n == null || n == 0) return 'Gratis';
+    return 'Bs ${n % 1 == 0 ? n.toInt() : n}';
   }
 
   Future<void> _resolveInstructor() async {
-    final nested = widget.classData['instructor']?['nombre_completo'];
+    final nested = _currentClass['instructor']?['nombre_completo'];
     if (nested != null && nested.toString().trim().isNotEmpty) {
       if (mounted) setState(() => _instructorName = nested.toString());
       return;
     }
-    final instructorId = widget.classData['instructor_id'];
+    final instructorId = _currentClass['instructor_id'];
     if (instructorId == null) {
       if (mounted) setState(() => _instructorName = 'Instructor asignado');
       return;
@@ -65,7 +98,7 @@ class _ClassDetailScreenState extends State<ClassDetailScreen> {
           .from('reservas')
           .select('id, estado')
           .eq('usuario_id', user.id)
-          .eq('clase_id', widget.classData['id']);
+          .eq('clase_id', _currentClass['id']);
 
       final hasActive = (existingList as List).any((r) =>
           r['estado'] == 'confirmada' || r['estado'] == 'activa' || r['estado'] == 'lista_de_espera');
@@ -84,17 +117,17 @@ class _ClassDetailScreenState extends State<ClassDetailScreen> {
       final checkCapacity = await _supabase
           .from('reservas')
           .select('id')
-          .eq('clase_id', widget.classData['id'])
+          .eq('clase_id', _currentClass['id'])
           .eq('estado', 'confirmada');
 
       final currentReservations = (checkCapacity as List).length;
-      final maxCapacity = widget.classData['capacidad_maxima'] ?? 20;
+      final maxCapacity = _currentClass['capacidad_maxima'] ?? 20;
       final finalState = currentReservations >= maxCapacity ? 'lista_de_espera' : 'confirmada';
 
       // 3. Crear reserva
       await _supabase.from('reservas').insert({
         'usuario_id': user.id,
-        'clase_id': widget.classData['id'],
+        'clase_id': _currentClass['id'],
         'estado': finalState,
       });
 
@@ -103,7 +136,7 @@ class _ClassDetailScreenState extends State<ClassDetailScreen> {
         final codigo = 'EST-${DateTime.now().millisecondsSinceEpoch.toString().substring(6)}';
         await _supabase.from('estudiantes').insert({
           'perfil_id': user.id,
-          'clase_id': widget.classData['id'],
+          'clase_id': _currentClass['id'],
           'codigo_estudiante': codigo,
           'estado': finalState,
         });
@@ -134,9 +167,9 @@ class _ClassDetailScreenState extends State<ClassDetailScreen> {
 
   // ── Modal de ¡Reserva Confirmada! ─────────────────────────────────────────
   void _showConfirmationModal() {
-    final nombre = widget.classData['nombre'] ?? 'la clase';
-    final fecha  = widget.classData['fecha']?.toString() ?? '';
-    String hora  = widget.classData['hora_inicio']?.toString() ?? '';
+    final nombre = _currentClass['nombre'] ?? 'la clase';
+    final fecha  = _currentClass['fecha']?.toString() ?? '';
+    String hora  = _currentClass['hora_inicio']?.toString() ?? '';
     if (hora.length > 5) hora = hora.substring(0, 5);
 
     showDialog(
@@ -304,17 +337,18 @@ class _ClassDetailScreenState extends State<ClassDetailScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final classData      = widget.classData;
+    final classData      = _currentClass;
     final nombre         = classData['nombre'] ?? 'Clase sin nombre';
     final descripcion    = classData['descripcion'] ?? 'Sin descripción disponible.';
     final capacidadMaxima = classData['capacidad_maxima'] ?? 0;
     final ubicacion      = classData['ubicacion'] ?? 'Por definir';
     final nivel          = classData['nivel'] ?? 'Todos los Niveles';
     final duracionMinutos = classData['duracion_minutos'];
+    final precioLabel    = _formatPrice(classData['precio']);
 
-    String duration     = duracionMinutos != null ? '$duracionMinutos min' : 'N/A';
-    String startTimeStr = classData['hora_inicio']?.toString() ?? 'N/A';
-    String endTimeStr   = classData['hora_fin']?.toString() ?? 'N/A';
+    String duration     = duracionMinutos != null ? '$duracionMinutos min' : '—';
+    String startTimeStr = classData['hora_inicio']?.toString() ?? '—';
+    String endTimeStr   = classData['hora_fin']?.toString() ?? '—';
     String dateStr      = classData['fecha']?.toString() ?? 'Fecha no disponible';
 
     if (startTimeStr.length > 5) startTimeStr = startTimeStr.substring(0, 5);
@@ -404,10 +438,12 @@ class _ClassDetailScreenState extends State<ClassDetailScreen> {
                     padding: const EdgeInsets.all(20),
                     child: Wrap(
                       spacing: 10,
+                      runSpacing: 8,
                       children: [
                         _buildInfoChip(Icons.access_time, duration),
                         _buildInfoChip(Icons.bar_chart, nivel.toString()),
                         _buildInfoChip(Icons.people_outline, '$capacidadMaxima Plazas Máximas'),
+                        _buildInfoChip(Icons.payments_outlined, precioLabel),
                       ],
                     ),
                   ),

@@ -72,20 +72,43 @@ class _LoginScreenState extends State<LoginScreen> {
         }
       }
     } on AuthException catch (error) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(error.message)),
-        );
-      }
+      if (mounted) _showSignInError(error.message, code: error.code);
     } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Ocurrió un error inesperado')),
-        );
-      }
+      if (mounted) _showSignInError(e.toString());
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
+  }
+
+  void _showSignInError(String raw, {String? code}) {
+    final lower = raw.toLowerCase();
+    final lowerCode = (code ?? '').toLowerCase();
+    String message;
+
+    if (lowerCode.contains('invalid_credentials') ||
+        lower.contains('invalid login credentials')) {
+      message = 'Correo o contraseña incorrectos.';
+    } else if (lower.contains('email not confirmed')) {
+      message =
+          'Tu correo aún no ha sido confirmado. Revisa tu bandeja de entrada.';
+    } else if (lowerCode.contains('unexpected_failure') ||
+        lower.contains('database error querying schema') ||
+        lower.contains('user is banned') ||
+        lower.contains('user not allowed') ||
+        lower.contains('user_banned')) {
+      message =
+          'Tu cuenta ha sido suspendida. Contacta al administrador.';
+    } else if (lower.contains('network') ||
+        lower.contains('failed host lookup') ||
+        lower.contains('socket')) {
+      message = 'Sin conexión a internet. Inténtalo de nuevo.';
+    } else {
+      message = 'No se pudo iniciar sesión. Inténtalo de nuevo.';
+    }
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message), backgroundColor: AppColors.error),
+    );
   }
 
   void _showForgotPasswordDialog() {

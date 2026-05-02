@@ -229,7 +229,7 @@ class _ManageClassScreenState extends State<ManageClassScreen> {
                             final capacidadMaxima = cl['capacidad_maxima'] ?? 0;
                             final activa = cl['activa'] ?? false;
                             final cancelada = cl['cancelada'] == true;
-                            final ubicacion = cl['ubicacion'] ?? 'N/A';
+                            final ubicacion = cl['ubicacion'] ?? '—';
 
                             return Container(
                               margin: const EdgeInsets.only(bottom: 12),
